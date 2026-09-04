@@ -18,10 +18,14 @@ import (
 
 // ==================== 登录信息本地保存（data 目录，对称可逆加密） ====================
 //
-// 勾选"记住登录"后，登录成功将 BDUSS/PTOKEN/STOKEN 以 AES-256-CBC 加密写入
-// data/credential.dat；下次启动可通过 RestoreLogin 自动恢复登录。
-// 加密密钥 = SHA256(机器指纹 + data/key.bin 随机盐)，首次使用时自动生成盐文件；
-// 密钥文件与凭证记录存放在同一 data 目录，均不随程序分发。
+// 威胁模型（开源 + 本地存储的平衡取舍）：
+//   - 防：直接拷贝 data/ 目录到其他机器解密使用（密钥含本机指纹绑定）
+//   - 防：密文被篡改/损坏后仍被程序误用（AES-GCM 自带完整性校验）
+//   - 不防：已获得本机文件读取权限的定向攻击者——该威胁需 OS 级凭据库（DPAPI/Keychain），
+//     对本项目属过度设计；且此类攻击者可同样读取浏览器 Cookie 库，边际收益趋零
+//
+// 方案：AES-256-GCM 认证加密，密钥 = SHA256(机器指纹 + data/key.bin 随机盐)，
+// 盐文件首次使用时生成，与凭证同目录、均不随程序分发。退出登录时全部清除。
 
 const (
 	baiduDataDir        = "data"
@@ -67,7 +71,7 @@ func machineFingerprint() string {
 
 // ensureCredKey 加载或生成加密密钥：SHA256(机器指纹 + 随机盐)
 // 盐文件 data/key.bin 首次使用时生成；密钥文件丢失或指纹变化将无法解密旧记录
-// 注意：盐与密文同目录，攻击者同时读取两者即可解密——本方案仅防"随手拷文件"，不防定向攻击
+// 机器指纹绑定使得密文离开本机后无法解密（防搬运），但无法对抗已控制本机的攻击者
 func ensureCredKey() ([]byte, error) {
 	credKeyMu.RLock()
 	if loadedCredKey != nil {
@@ -107,7 +111,7 @@ func ensureCredKey() ([]byte, error) {
 	return loadedCredKey, nil
 }
 
-// pkcs7Pad PKCS7 填充（凭证加密与 ndut_fmt 共用）
+// pkcs7Pad PKCS7 填充（ndut_fmt 使用；凭证加密已改用 GCM 无需填充）
 func pkcs7Pad(data []byte, blockSize int) []byte {
 	padding := blockSize - len(data)%blockSize
 	padded := make([]byte, len(data)+padding)
@@ -118,20 +122,39 @@ func pkcs7Pad(data []byte, blockSize int) []byte {
 	return padded
 }
 
+// blockFor 由 32 字节派生密钥构造 AES block
+func blockFor(key []byte) cipher.Block {
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		// SHA256 输出恒为 32 字节，合法 AES-256 key，此处仅为接口兜底
+		global.Log.Errorf("构造 AES cipher 失败: %v", err)
+		return nil
+	}
+	return block
+}
+
+// credNonceSize GCM 标准 nonce 长度
+const credNonceSize = 12
+
+// encryptCredential AES-256-GCM 认证加密：随机 nonce 前置存储，密文自带完整性校验
 func encryptCredential(plain []byte) (string, error) {
 	key, err := ensureCredKey()
 	if err != nil {
 		return "", err
 	}
-	block, err := aes.NewCipher(key)
+	gcm, err := cipher.NewGCM(blockFor(key))
 	if err != nil {
 		return "", err
 	}
-	encrypted := make([]byte, len(pkcs7Pad(plain, block.BlockSize())))
-	cipher.NewCBCEncrypter(block, key[:block.BlockSize()]).CryptBlocks(encrypted, pkcs7Pad(plain, block.BlockSize()))
-	return base64.StdEncoding.EncodeToString(encrypted), nil
+	nonce := make([]byte, credNonceSize)
+	if _, err := rand.Read(nonce); err != nil {
+		return "", err
+	}
+	sealed := gcm.Seal(nonce, nonce, plain, nil)
+	return base64.StdEncoding.EncodeToString(sealed), nil
 }
 
+// decryptCredential AES-256-GCM 解密：篡改或指纹变化都会在校验阶段直接失败
 func decryptCredential(text string) (*baiduSavedCredential, error) {
 	key, err := ensureCredKey()
 	if err != nil {
@@ -141,24 +164,21 @@ func decryptCredential(text string) (*baiduSavedCredential, error) {
 	if err != nil {
 		return nil, err
 	}
-	block, err := aes.NewCipher(key)
+	gcm, err := cipher.NewGCM(blockFor(key))
 	if err != nil {
 		return nil, err
 	}
-	if len(data) == 0 || len(data)%block.BlockSize() != 0 {
+	if len(data) < credNonceSize {
 		return nil, os.ErrInvalid
 	}
-	decrypted := make([]byte, len(data))
-	cipher.NewCBCDecrypter(block, key[:block.BlockSize()]).CryptBlocks(decrypted, data)
-
-	// 去除 PKCS7 填充
-	padding := int(decrypted[len(decrypted)-1])
-	if padding <= 0 || padding > block.BlockSize() {
-		return nil, os.ErrInvalid
+	nonce, ciphertext := data[:credNonceSize], data[credNonceSize:]
+	plain, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, err
 	}
 
 	var saved baiduSavedCredential
-	if err := json.Unmarshal(decrypted[:len(decrypted)-padding], &saved); err != nil {
+	if err := json.Unmarshal(plain, &saved); err != nil {
 		return nil, err
 	}
 	return &saved, nil
