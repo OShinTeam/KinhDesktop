@@ -68,3 +68,7 @@ coverage
 .codebuddy/
 .workbuddy/
 .trellis/
+
+# APP Data
+
+data
