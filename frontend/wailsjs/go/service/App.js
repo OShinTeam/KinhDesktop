@@ -22,6 +22,10 @@ export function GetBaiduCredential() {
   return window['go']['service']['App']['GetBaiduCredential']();
 }
 
+export function GetBaiduFileList(arg1) {
+  return window['go']['service']['App']['GetBaiduFileList'](arg1);
+}
+
 export function GetBaiduQR() {
   return window['go']['service']['App']['GetBaiduQR']();
 }

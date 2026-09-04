@@ -13,6 +13,8 @@ export function GetALLLang():Promise<Array<global.LanguageInfo>>;
 
 export function GetBaiduCredential():Promise<service.BaiduLoginResult>;
 
+export function GetBaiduFileList(arg1:string):Promise<service.BaiduFileListResult>;
+
 export function GetBaiduQR():Promise<service.BaiduQRCode>;
 
 export function GetCurrentLang():Promise<string>;

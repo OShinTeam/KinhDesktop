@@ -1,8 +1,12 @@
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import { GetBaiduFileList } from '../../wailsjs/go/service/App'
+import FileList from '../components/FileList.vue'
+import Breadcrumb from '../components/Breadcrumb.vue'
 import { useI18n } from '../composables/useI18n'
 import {
-  FolderOpened, Download, Setting
+  FolderOpened, Download, Setting, Refresh
 } from '@element-plus/icons-vue'
 
 const props = defineProps({
@@ -13,6 +17,36 @@ const { t } = useI18n()
 
 // 当前页面：files | downloads | settings
 const activePage = ref('files')
+const files = ref([])
+const loading = ref(false)
+const currentDir = ref('/')
+
+async function loadFiles(dir = '/') {
+  loading.value = true
+  try {
+    const result = await GetBaiduFileList(dir)
+    if (!result?.success) {
+      files.value = []
+      ElMessage.error(result?.message || '读取文件列表失败')
+      return
+    }
+
+    files.value = result.list || []
+    currentDir.value = result.dir || dir
+  } catch (error) {
+    files.value = []
+    ElMessage.error(error?.message || String(error) || '读取文件列表失败')
+  } finally {
+    loading.value = false
+  }
+}
+
+function handleFileAction(payload) {
+  // 预留文件操作入口，后续根据 payload.type 实现具体功能
+  void payload
+}
+
+onMounted(() => loadFiles('/'))
 
 const menuItems = [
   { key: 'files', icon: FolderOpened },
@@ -61,9 +95,23 @@ function vipInfo(vipType) {
 
     <!-- 右侧内容区 -->
     <main class="content-area">
-      <div v-if="activePage === 'files'" class="page-placeholder">
-        <el-empty :description="t('page_files', '我的文件')" />
-      </div>
+      <section v-if="activePage === 'files'" class="files-page">
+        <header class="files-header">
+          <Breadcrumb :path="currentDir" @navigate="loadFiles" />
+          <el-button class="files-refresh" :icon="Refresh" :loading="loading" @click="loadFiles(currentDir)">
+            {{ t('file_refresh', '刷新') }}
+          </el-button>
+        </header>
+
+        <div class="files-content">
+          <FileList
+            :files="files"
+            :loading="loading"
+            @navigate="loadFiles"
+            @action="handleFileAction"
+          />
+        </div>
+      </section>
       <div v-else-if="activePage === 'downloads'" class="page-placeholder">
         <el-empty :description="t('page_downloads', '下载管理')" />
       </div>
@@ -123,7 +171,43 @@ function vipInfo(vipType) {
 
 .content-area {
   flex: 1;
-  overflow-y: auto;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: #f5f7fa;
+}
+
+.files-page {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.files-header {
+  min-height: 56px;
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e4e7ed;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.files-header .breadcrumb {
+  flex: 1;
+  min-width: 0;
+}
+
+.files-refresh {
+  flex-shrink: 0;
+}
+
+.files-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
