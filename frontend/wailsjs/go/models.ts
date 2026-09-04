@@ -220,6 +220,24 @@ export namespace service {
 	        this.prompt = source["prompt"];
 	    }
 	}
+	export class BaiduQuotaInfo {
+	    success: boolean;
+	    total: number;
+	    used: number;
+	    message?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BaiduQuotaInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.total = source["total"];
+	        this.used = source["used"];
+	        this.message = source["message"];
+	    }
+	}
 	export class SystemInfo {
 	    os: string;
 	    arch: string;

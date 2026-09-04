@@ -90,7 +90,7 @@ function goBack() {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: 13px;
   color: #606266;
 }
 
@@ -100,7 +100,7 @@ function goBack() {
   padding: 0;
   border: 0;
   background: transparent;
-  font-size: 14px;
+  font-size: 13px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -127,7 +127,7 @@ function goBack() {
 
 .divider {
   flex-shrink: 0;
-  margin: 0 8px;
+  margin: 0 6px;
   color: #c0c4cc;
 }
 </style>

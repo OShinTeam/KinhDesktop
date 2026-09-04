@@ -15,6 +15,9 @@ const emit = defineEmits(['login-success'])
 // 当前视图：qr（扫码，默认）| cookie
 const activeTab = ref('qr')
 
+// 记住登录：登录成功后保存登录信息到本地（默认勾选）
+const rememberLogin = ref(true)
+
 // ==================== 扫码登录 ====================
 const qrImage = ref('')
 const qrSign = ref('')
@@ -88,7 +91,7 @@ async function doQRLogin(v) {
   qrStatusText.value = 'success'
   loginLoading.value = true
   try {
-    const result = await BaiduQRLogin(v)
+    const result = await BaiduQRLogin(v, rememberLogin.value)
     if (result && result.success) {
       loginResult.value = result
       ElMessage.success(t('login_success', '登录成功'))
@@ -116,7 +119,7 @@ async function handleCookieLogin() {
   }
   cookieLoading.value = true
   try {
-    const result = await LoginWithCookie(cookieForm.value.bduss.trim(), cookieForm.value.ptoken.trim())
+    const result = await LoginWithCookie(cookieForm.value.bduss.trim(), cookieForm.value.ptoken.trim(), rememberLogin.value)
     if (result && result.success) {
       loginResult.value = result
       ElMessage.success(t('login_success', '登录成功'))
@@ -149,6 +152,12 @@ onBeforeUnmount(() => {
       </div>
 
       <el-tabs v-model="activeTab" stretch class="login-tabs">
+        <!-- 记住登录（两个登录方式共用） -->
+        <div class="remember-row">
+          <el-checkbox v-model="rememberLogin">
+            {{ t('remember_login', '记住登录') }}
+          </el-checkbox>
+        </div>
         <!-- 扫码登录（默认） -->
         <el-tab-pane :label="t('tab_qr_login', '扫码登录')" name="qr">
           <div class="pane">
@@ -280,6 +289,12 @@ onBeforeUnmount(() => {
 /* 统一两个 tab 的高度，切换时不引起卡片尺寸变化 */
 .login-tabs :deep(.el-tabs__content) {
   overflow: hidden;
+}
+
+.remember-row {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0 0;
 }
 
 .pane {

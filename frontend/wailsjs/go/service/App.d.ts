@@ -5,7 +5,7 @@ import {global} from '../models';
 
 export function BaiduLogout():Promise<boolean>;
 
-export function BaiduQRLogin(arg1:string):Promise<service.BaiduLoginResult>;
+export function BaiduQRLogin(arg1:string,arg2:boolean):Promise<service.BaiduLoginResult>;
 
 export function Flashtime():Promise<void>;
 
@@ -16,6 +16,8 @@ export function GetBaiduCredential():Promise<service.BaiduLoginResult>;
 export function GetBaiduFileList(arg1:string):Promise<service.BaiduFileListResult>;
 
 export function GetBaiduQR():Promise<service.BaiduQRCode>;
+
+export function GetBaiduQuota():Promise<service.BaiduQuotaInfo>;
 
 export function GetCurrentLang():Promise<string>;
 
@@ -37,7 +39,7 @@ export function Gettestjson():Promise<string>;
 
 export function Greet(arg1:string):Promise<string>;
 
-export function LoginWithCookie(arg1:string,arg2:string):Promise<service.BaiduLoginResult>;
+export function LoginWithCookie(arg1:string,arg2:string,arg3:boolean):Promise<service.BaiduLoginResult>;
 
 export function Notify(arg1:string,arg2:string):Promise<void>;
 
@@ -48,6 +50,8 @@ export function OpenFolderSelect():Promise<string>;
 export function PollBaiduQR(arg1:string):Promise<service.BaiduPollResult>;
 
 export function ReadFileContent(arg1:string):Promise<string>;
+
+export function RestoreLogin():Promise<service.BaiduLoginResult>;
 
 export function SaveFileSelect():Promise<string>;
 

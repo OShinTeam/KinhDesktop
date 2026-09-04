@@ -6,8 +6,8 @@ export function BaiduLogout() {
   return window['go']['service']['App']['BaiduLogout']();
 }
 
-export function BaiduQRLogin(arg1) {
-  return window['go']['service']['App']['BaiduQRLogin'](arg1);
+export function BaiduQRLogin(arg1, arg2) {
+  return window['go']['service']['App']['BaiduQRLogin'](arg1, arg2);
 }
 
 export function Flashtime() {
@@ -28,6 +28,10 @@ export function GetBaiduFileList(arg1) {
 
 export function GetBaiduQR() {
   return window['go']['service']['App']['GetBaiduQR']();
+}
+
+export function GetBaiduQuota() {
+  return window['go']['service']['App']['GetBaiduQuota']();
 }
 
 export function GetCurrentLang() {
@@ -70,8 +74,8 @@ export function Greet(arg1) {
   return window['go']['service']['App']['Greet'](arg1);
 }
 
-export function LoginWithCookie(arg1, arg2) {
-  return window['go']['service']['App']['LoginWithCookie'](arg1, arg2);
+export function LoginWithCookie(arg1, arg2, arg3) {
+  return window['go']['service']['App']['LoginWithCookie'](arg1, arg2, arg3);
 }
 
 export function Notify(arg1, arg2) {
@@ -92,6 +96,10 @@ export function PollBaiduQR(arg1) {
 
 export function ReadFileContent(arg1) {
   return window['go']['service']['App']['ReadFileContent'](arg1);
+}
+
+export function RestoreLogin() {
+  return window['go']['service']['App']['RestoreLogin']();
 }
 
 export function SaveFileSelect() {

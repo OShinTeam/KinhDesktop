@@ -1,27 +1,22 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { Minus, FullScreen, Close } from '@element-plus/icons-vue'
-import { WindowMinimise, WindowToggleMaximise, WindowClose, GetProcessName } from '../../wailsjs/go/service/App'
-import { useI18n } from '../composables/useI18n'
+import { WindowMinimise, WindowToggleMaximise, WindowClose } from '../../wailsjs/go/service/App'
+import appIcon from '../assets/appicon.png'
 
-const { t } = useI18n()
-const appName = ref('')
-
-onMounted(async () => {
-  try {
-    appName.value = await GetProcessName()
-  } catch (e) {
-    appName.value = t('app_name', 'wails-temp')
-  }
-})
+// 版本号集中定义，与应用图标一起在顶栏展示
+const appVersion = ref('v0.1.0')
 </script>
 
 <template>
-  <!-- 上边栏 -->
+  <!-- 上边栏：图标 + 应用信息（名称/版本两行），右侧窗口控制按钮 -->
   <div class="top-bar" @dblclick="WindowToggleMaximise">
-    <!-- 左侧 Logo 和标题 -->
     <div class="left-panel">
-      <span class="app-title">{{ appName }}</span>
+      <img :src="appIcon" class="app-icon" alt="logo" draggable="false" />
+      <div class="app-info">
+        <span class="app-title">KinhDesktop</span>
+        <span v-if="appVersion" class="app-version">{{ appVersion }}</span>
+      </div>
     </div>
 
     <!-- 右侧窗口控制按钮 -->
@@ -44,8 +39,8 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 20px 0 12px;
-  height: 30px;
+  padding: 0 20px 0 10px;
+  height: 44px;
   background-color: #fff;
   border-bottom: 1px solid #e4e7ed;
   --wails-draggable: drag;
@@ -55,12 +50,36 @@ onMounted(async () => {
 .left-panel {
   display: flex;
   align-items: center;
+  gap: 8px;
+  overflow: hidden;
+}
+
+.app-icon {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.app-info {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  line-height: 1.2;
+  overflow: hidden;
 }
 
 .app-title {
   font-weight: 600;
-  font-size: 13px;
+  font-size: 12px;
   color: #303133;
+  white-space: nowrap;
+}
+
+.app-version {
+  font-size: 10px;
+  color: #909399;
+  white-space: nowrap;
 }
 
 .right-panel {

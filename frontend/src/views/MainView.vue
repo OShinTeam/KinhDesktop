@@ -1,17 +1,19 @@
 <script setup>
-import { onMounted, ref } from 'vue'
-import { ElMessage } from 'element-plus'
-import { GetBaiduFileList } from '../../wailsjs/go/service/App'
+import { computed, onMounted, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { GetBaiduFileList, GetBaiduQuota, BaiduLogout } from '../../wailsjs/go/service/App'
 import FileList from '../components/FileList.vue'
 import Breadcrumb from '../components/Breadcrumb.vue'
 import { useI18n } from '../composables/useI18n'
 import {
-  FolderOpened, Download, Setting, Refresh
+  FolderOpened, Download, Setting, Refresh, SwitchButton
 } from '@element-plus/icons-vue'
 
 const props = defineProps({
   credential: { type: Object, required: true }
 })
+
+const emit = defineEmits(['logout'])
 
 const { t } = useI18n()
 
@@ -20,6 +22,34 @@ const activePage = ref('files')
 const files = ref([])
 const loading = ref(false)
 const currentDir = ref('/')
+
+// 网盘容量信息
+const quota = ref({ total: 0, used: 0 })
+const quotaPercent = computed(() => {
+  if (!quota.value.total) return 0
+  const percent = (quota.value.used / quota.value.total) * 100
+  return Math.min(Math.round(percent * 10) / 10, 100)
+})
+
+function formatQuotaSize(bytes) {
+  const value = Number(bytes) || 0
+  if (value === 0) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1)
+  return `${parseFloat((value / Math.pow(1024, index)).toFixed(2))} ${units[index]}`
+}
+
+async function loadQuota() {
+  try {
+    const result = await GetBaiduQuota()
+    if (result?.success) {
+      quota.value = { total: result.total, used: result.used }
+    }
+  } catch (err) {
+    // 容量信息获取失败不影响主流程
+    console.warn('获取容量信息失败:', err)
+  }
+}
 
 async function loadFiles(dir = '/') {
   loading.value = true
@@ -46,7 +76,36 @@ function handleFileAction(payload) {
   void payload
 }
 
-onMounted(() => loadFiles('/'))
+// 退出登录：弹窗确认后调用后端清除凭证（含本地密钥与保存的登录信息）
+async function handleLogout() {
+  try {
+    await ElMessageBox.confirm(
+      t('logout_confirm_message', '确定要退出当前账号吗？本地保存的登录信息将被清除。'),
+      t('logout_confirm_title', '退出登录'),
+      {
+        confirmButtonText: t('logout_confirm_ok', '退出'),
+        cancelButtonText: t('logout_confirm_cancel', '取消'),
+        type: 'warning',
+        confirmButtonClass: 'el-button--danger',
+      }
+    )
+  } catch {
+    return // 用户取消
+  }
+
+  try {
+    await BaiduLogout()
+  } catch (err) {
+    ElMessage.error(String(err))
+  }
+  ElMessage.success(t('logout_success', '已退出登录'))
+  emit('logout')
+}
+
+onMounted(() => {
+  loadFiles('/')
+  loadQuota()
+})
 
 const menuItems = [
   { key: 'files', icon: FolderOpened },
@@ -68,19 +127,20 @@ function vipInfo(vipType) {
   <div class="main-layout">
     <!-- 左侧边栏 -->
     <aside class="sidebar">
-      <!-- 账户信息 -->
-      <div class="account-card">
-        <el-avatar :size="48" :src="credential.photo_url || ''" class="account-avatar">
-          {{ credential.username ? credential.username.charAt(0) : '?' }}
-        </el-avatar>
-        <div class="account-info">
-          <div class="account-name">{{ credential.username }}</div>
-          <div class="account-tags">
-            <el-tag v-if="vipInfo(credential.vip_type)" :type="vipInfo(credential.vip_type).type" size="small" effect="dark">
-              {{ vipInfo(credential.vip_type).label }}
-            </el-tag>
-            <el-tag v-else type="info" size="small">{{ t('no_vip', '无会员') }}</el-tag>
-          </div>
+      <!-- 顶部：网盘容量卡片 -->
+      <div class="quota-card">
+        <div class="quota-title">
+          <span>网盘空间</span>
+          <span class="quota-percent">{{ quotaPercent }}%</span>
+        </div>
+        <el-progress
+          :percentage="quotaPercent"
+          :show-text="false"
+          :stroke-width="8"
+          :color="quotaPercent > 90 ? '#f56c6c' : quotaPercent > 70 ? '#e6a23c' : '#409eff'"
+        />
+        <div class="quota-detail">
+          {{ formatQuotaSize(quota.used) }} / {{ formatQuotaSize(quota.total) }}
         </div>
       </div>
 
@@ -91,6 +151,35 @@ function vipInfo(vipType) {
           <span>{{ t('page_' + item.key, item.key) }}</span>
         </el-menu-item>
       </el-menu>
+
+      <!-- 底部账户信息 -->
+      <div class="account-card">
+        <div class="account-top">
+          <el-avatar :size="48" :src="credential.photo_url || ''" class="account-avatar">
+            {{ credential.username ? credential.username.charAt(0) : '?' }}
+          </el-avatar>
+          <div class="account-name" :title="credential.username">{{ credential.username }}</div>
+        </div>
+        <div class="account-bottom">
+          <div class="account-tags">
+            <el-tag v-if="vipInfo(credential.vip_type)" :type="vipInfo(credential.vip_type).type" size="small" effect="dark">
+              {{ vipInfo(credential.vip_type).label }}
+            </el-tag>
+            <el-tag v-else type="info" size="small">{{ t('no_vip', '无会员') }}</el-tag>
+          </div>
+          <el-tooltip :content="t('btn_logout', '退出登录')" placement="top">
+            <el-button
+              class="logout-btn"
+              :icon="SwitchButton"
+              circle
+              text
+              type="danger"
+              :title="t('btn_logout', '退出登录')"
+              @click="handleLogout"
+            />
+          </el-tooltip>
+        </div>
+      </div>
     </aside>
 
     <!-- 右侧内容区 -->
@@ -98,7 +187,13 @@ function vipInfo(vipType) {
       <section v-if="activePage === 'files'" class="files-page">
         <header class="files-header">
           <Breadcrumb :path="currentDir" @navigate="loadFiles" />
-          <el-button class="files-refresh" :icon="Refresh" :loading="loading" @click="loadFiles(currentDir)">
+          <el-button
+            class="files-refresh"
+            size="small"
+            :icon="Refresh"
+            :loading="loading"
+            @click="loadFiles(currentDir)"
+          >
             {{ t('file_refresh', '刷新') }}
           </el-button>
         </header>
@@ -138,20 +233,57 @@ function vipInfo(vipType) {
   flex-direction: column;
 }
 
+.sidebar-menu {
+  border-right: none;
+  flex: 1;
+}
+
+/* 顶部网盘容量卡片 */
+.quota-card {
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.quota-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #909399;
+}
+
+.quota-percent {
+  font-size: 11px;
+  color: #909399;
+}
+
+.quota-detail {
+  font-size: 12px;
+  color: #606266;
+}
+
+/* 底部账户区：头像+用户名与标签/退出按钮分两行，用户名可完整显示 */
 .account-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.account-top {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 16px;
-  border-bottom: 1px solid #f0f0f0;
-}
-
-.account-info {
-  flex: 1;
   min-width: 0;
 }
 
 .account-name {
+  flex: 1;
+  min-width: 0;
   font-size: 14px;
   font-weight: 600;
   color: #303133;
@@ -160,13 +292,19 @@ function vipInfo(vipType) {
   text-overflow: ellipsis;
 }
 
-.account-tags {
-  margin-top: 4px;
+.account-bottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
 }
 
-.sidebar-menu {
-  border-right: none;
-  flex: 1;
+.account-tags {
+  min-width: 0;
+}
+
+.logout-btn {
+  flex-shrink: 0;
 }
 
 .content-area {
@@ -186,13 +324,13 @@ function vipInfo(vipType) {
 }
 
 .files-header {
-  min-height: 56px;
-  padding: 10px 16px;
+  min-height: 44px;
+  padding: 6px 16px;
   background: #fff;
   border-bottom: 1px solid #e4e7ed;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
 }
 
 .files-header .breadcrumb {

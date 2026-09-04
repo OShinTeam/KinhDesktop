@@ -222,7 +222,8 @@ func cleanBaiduJSON(s string) string {
 }
 
 // BaiduQRLogin 使用扫码得到的凭证 v 换取登录 Cookie，并验证网盘登录状态
-func (a *App) BaiduQRLogin(v string) *BaiduLoginResult {
+// rememberLogin 为 true 时登录成功后保存登录信息到本地
+func (a *App) BaiduQRLogin(v string, rememberLogin bool) *BaiduLoginResult {
 	ts := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	api := fmt.Sprintf(
 		"https://passport.baidu.com/v3/login/main/qrbdusslogin?bduss=%s&qrcode=1&tpl=pp&apiver=v3&tt=%s&traceid=&time=%s&alg=v3&elapsed=1",
@@ -249,13 +250,10 @@ func (a *App) BaiduQRLogin(v string) *BaiduLoginResult {
 		return &BaiduLoginResult{Success: false, Message: "登录失败: " + msg}
 	}
 
-	// 网盘 API 需要 STOKEN，缺失时用 PTOKEN 换取
-	stoken := result.Data.Session.SToken
+	// 扫码返回的 STOKEN 不能用于网盘接口，强制通过 plantcookie 刷新一次网盘 STOKEN
+	stoken := refreshStoken(result.Data.Session.BDUSS, result.Data.Session.PToken)
 	if stoken == "" {
-		stoken = refreshStoken(result.Data.Session.BDUSS, result.Data.Session.PToken)
-		if stoken == "" {
-			return &BaiduLoginResult{Success: false, Message: "获取 STOKEN 失败"}
-		}
+		return &BaiduLoginResult{Success: false, Message: "获取 STOKEN 失败"}
 	}
 
 	login := &BaiduLoginResult{
@@ -263,7 +261,7 @@ func (a *App) BaiduQRLogin(v string) *BaiduLoginResult {
 		PToken: result.Data.Session.PToken,
 		SToken: stoken,
 	}
-	if ok := verifyAndFinalize(login); !ok {
+	if ok := verifyAndFinalize(login, rememberLogin); !ok {
 		return &BaiduLoginResult{Success: false, Message: "登录状态验证失败"}
 	}
 	return login
@@ -272,7 +270,8 @@ func (a *App) BaiduQRLogin(v string) *BaiduLoginResult {
 // ==================== Cookie 登录 ====================
 
 // LoginWithCookie 使用用户手动填写的 Cookie 登录（仅需 BDUSS 与 PTOKEN，STOKEN 由 PTOKEN 换取）
-func (a *App) LoginWithCookie(bduss string, ptoken string) *BaiduLoginResult {
+// rememberLogin 为 true 时登录成功后保存登录信息到本地
+func (a *App) LoginWithCookie(bduss string, ptoken string, rememberLogin bool) *BaiduLoginResult {
 	bduss = strings.TrimSpace(bduss)
 	ptoken = strings.TrimSpace(ptoken)
 
@@ -290,7 +289,7 @@ func (a *App) LoginWithCookie(bduss string, ptoken string) *BaiduLoginResult {
 		PToken: ptoken,
 		SToken: stoken,
 	}
-	if ok := verifyAndFinalize(login); !ok {
+	if ok := verifyAndFinalize(login, rememberLogin); !ok {
 		return &BaiduLoginResult{Success: false, Message: "登录状态验证失败，请检查 BDUSS / PTOKEN 是否有效"}
 	}
 	return login
@@ -406,7 +405,8 @@ func verifyBaiduLogin(bduss, stoken string) *baiduLoginStatus {
 }
 
 // verifyAndFinalize 验证登录状态；验证失败（如 STOKEN 过期）时刷新一次 STOKEN 后重试
-func verifyAndFinalize(login *BaiduLoginResult) bool {
+// rememberLogin 为 true 时登录成功后保存登录信息到本地
+func verifyAndFinalize(login *BaiduLoginResult, rememberLogin bool) bool {
 	status := verifyBaiduLogin(login.BDUSS, login.SToken)
 
 	// 验证失败，刷新一次 STOKEN 再重试
@@ -435,6 +435,14 @@ func verifyAndFinalize(login *BaiduLoginResult) bool {
 		login.VipType = 0
 	}
 	currentBaiduCredential = login
+	// 勾选记住登录时保存到本地（data 目录，AES 加密）
+	if rememberLogin {
+		if err := saveBaiduCredential(login); err != nil {
+			global.Log.Warnf("保存登录信息失败: %v", err)
+		} else {
+			global.Log.Info("登录信息已保存到本地")
+		}
+	}
 	global.Log.Infof("百度网盘登录成功: %s (vip_type=%d)", login.Username, login.VipType)
 	return true
 }
@@ -446,9 +454,10 @@ func (a *App) GetBaiduCredential() *BaiduLoginResult {
 	return currentBaiduCredential
 }
 
-// BaiduLogout 退出登录，清除凭证
+// BaiduLogout 退出登录，清除凭证（同时删除本地保存的登录信息）
 func (a *App) BaiduLogout() bool {
 	currentBaiduCredential = nil
+	clearBaiduCredential()
 	global.Log.Info("已退出百度账号登录")
 	return true
 }
