@@ -27,6 +27,9 @@ const loginLoading = ref(false)   // 凭证换取中
 const loginResult = ref(null)     // 登录成功后的结果
 
 const pollTimer = ref(null)
+// 连续网络错误计数，超过上限停止轮询（防止静默死循环）
+const MAX_NETWORK_ERRORS = 3
+const networkErrorCount = ref(0)
 
 // 扫码状态文案
 const qrStatusText = ref('loading')
@@ -37,6 +40,7 @@ async function loadQR() {
   qrImage.value = ''
   qrSign.value = ''
   loginResult.value = null
+  networkErrorCount.value = 0
   qrStatusText.value = 'loading'
   qrLoading.value = true
   try {
@@ -64,6 +68,7 @@ function startPolling() {
     try {
       const res = await PollBaiduQR(qrSign.value)
       if (res.status === 'scanned') {
+        networkErrorCount.value = 0
         qrStatusText.value = 'scanned'
       } else if (res.status === 'success') {
         stopPolling()
@@ -71,9 +76,16 @@ function startPolling() {
       } else if (res.status === 'error') {
         stopPolling()
         qrStatusText.value = 'error'
+      } else if (res.status === 'network_error') {
+        networkErrorCount.value += 1
+        if (networkErrorCount.value >= MAX_NETWORK_ERRORS) {
+          stopPolling()
+          qrStatusText.value = 'error'
+          ElMessage.error(t('qr_network_error', '网络异常，扫码轮询已停止，请刷新二维码重试'))
+        }
       }
     } catch (err) {
-      // 单次轮询失败不中断，等待下一轮
+      // 单次轮询异常不中断，连续失败由 network_error 分支兜底
       console.warn('轮询失败:', err)
     }
   }, 2000)

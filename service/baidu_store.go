@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"kinh-desktop/global"
 )
@@ -29,7 +30,11 @@ const (
 	keySaltSize         = 32
 )
 
-var loadedCredKey []byte
+// loadedCredKey 缓存派生密钥，credKeyMu 保护并发读写（登录/登出在不同 goroutine 触发）
+var (
+	credKeyMu     sync.RWMutex
+	loadedCredKey []byte
+)
 
 type baiduSavedCredential struct {
 	BDUSS  string `json:"bduss"`
@@ -39,7 +44,11 @@ type baiduSavedCredential struct {
 
 // machineFingerprint 采集机器指纹（主机名 + 主网卡 MAC），跨平台无额外依赖
 func machineFingerprint() string {
-	host, _ := os.Hostname()
+	host, err := os.Hostname()
+	if err != nil {
+		global.Log.Warnf("获取主机名失败，指纹降级为仅 MAC: %v", err)
+		host = ""
+	}
 	var macs []string
 	if interfaces, err := net.Interfaces(); err == nil {
 		for _, iface := range interfaces {
@@ -58,7 +67,19 @@ func machineFingerprint() string {
 
 // ensureCredKey 加载或生成加密密钥：SHA256(机器指纹 + 随机盐)
 // 盐文件 data/key.bin 首次使用时生成；密钥文件丢失或指纹变化将无法解密旧记录
+// 注意：盐与密文同目录，攻击者同时读取两者即可解密——本方案仅防"随手拷文件"，不防定向攻击
 func ensureCredKey() ([]byte, error) {
+	credKeyMu.RLock()
+	if loadedCredKey != nil {
+		key := loadedCredKey
+		credKeyMu.RUnlock()
+		return key, nil
+	}
+	credKeyMu.RUnlock()
+
+	credKeyMu.Lock()
+	defer credKeyMu.Unlock()
+	// 双重检查：拿到写锁后可能已被其他 goroutine 填充
 	if loadedCredKey != nil {
 		return loadedCredKey, nil
 	}
@@ -86,6 +107,17 @@ func ensureCredKey() ([]byte, error) {
 	return loadedCredKey, nil
 }
 
+// pkcs7Pad PKCS7 填充（凭证加密与 ndut_fmt 共用）
+func pkcs7Pad(data []byte, blockSize int) []byte {
+	padding := blockSize - len(data)%blockSize
+	padded := make([]byte, len(data)+padding)
+	copy(padded, data)
+	for i := len(data); i < len(padded); i++ {
+		padded[i] = byte(padding)
+	}
+	return padded
+}
+
 func encryptCredential(plain []byte) (string, error) {
 	key, err := ensureCredKey()
 	if err != nil {
@@ -95,15 +127,8 @@ func encryptCredential(plain []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	// PKCS7 填充
-	padding := block.BlockSize() - len(plain)%block.BlockSize()
-	padded := make([]byte, len(plain)+padding)
-	copy(padded, plain)
-	for i := len(plain); i < len(padded); i++ {
-		padded[i] = byte(padding)
-	}
-	encrypted := make([]byte, len(padded))
-	cipher.NewCBCEncrypter(block, key[:block.BlockSize()]).CryptBlocks(encrypted, padded)
+	encrypted := make([]byte, len(pkcs7Pad(plain, block.BlockSize())))
+	cipher.NewCBCEncrypter(block, key[:block.BlockSize()]).CryptBlocks(encrypted, pkcs7Pad(plain, block.BlockSize()))
 	return base64.StdEncoding.EncodeToString(encrypted), nil
 }
 
@@ -203,7 +228,9 @@ func clearBaiduCredential() {
 		}
 	}
 	// 密钥已失效，清空内存缓存，下次使用时重新派生
+	credKeyMu.Lock()
 	loadedCredKey = nil
+	credKeyMu.Unlock()
 }
 
 // RestoreLogin 使用本地保存的登录信息自动登录（含 STOKEN 失效时刷新一次重试）

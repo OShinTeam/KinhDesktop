@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"kinh-desktop/global"
@@ -25,7 +26,7 @@ import (
 //   - STOKEN 可能过期，验证接口失败后自动刷新一次 STOKEN 并重试
 
 var (
-	// 百度 unicast 长轮询单次阻塞约 25~35 秒
+	// baiduLongPollClient 用于扫码 unicast 长轮询等普通 GET 请求（二维码图片下载、qrbdusslogin 复用此 client）
 	baiduLongPollClient = &http.Client{
 		Timeout: 35 * time.Second,
 		Transport: &http.Transport{
@@ -182,14 +183,20 @@ func (a *App) GetBaiduQR() (*BaiduQRCode, error) {
 }
 
 // PollBaiduQR 执行一次扫码状态轮询（前端循环调用，每次为一次长轮询请求）
+// status: waiting | scanned | success | error | network_error
+// network_error 表示网络异常（区别于二维码过期），由前端决定是否继续轮询
 func (a *App) PollBaiduQR(sign string) *BaiduPollResult {
 	bs, err := baiduGet("https://passport.baidu.com/channel/unicast?channel_id=" + sign)
 	if err != nil {
-		return &BaiduPollResult{Status: "waiting"}
+		global.Log.Warnf("扫码轮询请求失败: %v", err)
+		return &BaiduPollResult{Status: "network_error"}
 	}
 
 	var resp baiduPollResp
-	_ = json.Unmarshal(bs, &resp)
+	if err := json.Unmarshal(bs, &resp); err != nil {
+		global.Log.Warnf("解析扫码轮询响应失败: %v", err)
+		return &BaiduPollResult{Status: "network_error"}
+	}
 
 	switch resp.Errno {
 	case 1:
@@ -298,6 +305,7 @@ func (a *App) LoginWithCookie(bduss string, ptoken string, rememberLogin bool) *
 // ==================== STOKEN 与登录验证 ====================
 
 // getndut 生成 plantcookie 所需的 ndut_fmt（AES-CBC 加密，参考 KinhWebEO utils/baidu.go）
+// 该加密为百度接口约定格式（固定 key/iv），与本地凭证加密无关
 func getndut() string {
 	data := "time=" + strconv.FormatInt(time.Now().Unix(), 10) + ";ua=other"
 	key := []byte("01hltm9JcnEfqy5t")
@@ -308,13 +316,8 @@ func getndut() string {
 		global.Log.Errorf("生成 ndut_fmt 失败: %v", err)
 		return "-1"
 	}
-	// PKCS7 填充
-	padding := block.BlockSize() - len(data)%block.BlockSize()
-	padText := strings.Repeat(string(byte(padding)), padding)
-	encryptBytes := []byte(data + padText)
-
-	crypted := make([]byte, len(encryptBytes))
-	cipher.NewCBCEncrypter(block, iv).CryptBlocks(crypted, encryptBytes)
+	crypted := make([]byte, len(pkcs7Pad([]byte(data), block.BlockSize())))
+	cipher.NewCBCEncrypter(block, iv).CryptBlocks(crypted, pkcs7Pad([]byte(data), block.BlockSize()))
 	return strings.ToUpper(hex.EncodeToString(crypted))
 }
 
@@ -334,31 +337,43 @@ func refreshStoken(bduss, ptoken string) string {
 
 	// 返回 302 说明需要先走一次 wappass 重新认证流程
 	location := resp.Header.Get("Location")
-	if location != "" && ptoken != "" {
-		global.Log.Info("plantcookie 需要重新认证，尝试 wappass 流程")
-		loginUrl := "https://wappass.baidu.com/v3/login/api/auth?notjump=1&return_type=3&tpl=netdisk&u=https%3A%2F%2Fpan.baidu.com%2Frest%2F2.0%2Fxpan%2Ffile%3Fmethod%3Dplantcookie%26source%3Dpcs%26callid%3D0.1%26type%3Dstoken%26from_module%3Dcloud-ui"
-		resp2, err2 := baiduGetWithResponse(loginUrl, "netdisk;Mo", cookie)
-		if err2 != nil {
-			global.Log.Errorf("wappass 认证请求失败: %v", err2)
-			return ""
-		}
-		location2 := resp2.Header.Get("Location")
-		if location2 == "" {
-			global.Log.Warn("wappass 认证失败: BDUSS 无效")
-			return ""
-		}
-		if !strings.Contains(location2, "&stoken=") {
-			global.Log.Warn("wappass 认证失败: PTOKEN 无效")
-			return ""
-		}
-		resp, err = baiduGetWithResponse(location2, "netdisk;Mo", cookie)
-		if err != nil {
-			global.Log.Errorf("获取 STOKEN 请求失败: %v", err)
-			return ""
-		}
+	if location == "" || ptoken == "" {
+		defer resp.Body.Close()
+		return extractStokenFromResponse(resp)
 	}
+	resp.Body.Close()
 
-	// 从 Set-Cookie 响应头提取 STOKEN
+	global.Log.Info("plantcookie 需要重新认证，尝试 wappass 流程")
+	loginUrl := "https://wappass.baidu.com/v3/login/api/auth?notjump=1&return_type=3&tpl=netdisk&u=https%3A%2F%2Fpan.baidu.com%2Frest%2F2.0%2Fxpan%2Ffile%3Fmethod%3Dplantcookie%26source%3Dpcs%26callid%3D0.1%26type%3Dstoken%26from_module%3Dcloud-ui"
+	resp2, err2 := baiduGetWithResponse(loginUrl, "netdisk;Mo", cookie)
+	if err2 != nil {
+		global.Log.Errorf("wappass 认证请求失败: %v", err2)
+		return ""
+	}
+	location2 := resp2.Header.Get("Location")
+	if location2 == "" {
+		resp2.Body.Close()
+		global.Log.Warn("wappass 认证失败: BDUSS 无效")
+		return ""
+	}
+	if !strings.Contains(location2, "&stoken=") {
+		resp2.Body.Close()
+		global.Log.Warn("wappass 认证失败: PTOKEN 无效")
+		return ""
+	}
+	resp2.Body.Close()
+
+	resp, err = baiduGetWithResponse(location2, "netdisk;Mo", cookie)
+	if err != nil {
+		global.Log.Errorf("获取 STOKEN 请求失败: %v", err)
+		return ""
+	}
+	defer resp.Body.Close()
+	return extractStokenFromResponse(resp)
+}
+
+// extractStokenFromResponse 从响应的 Set-Cookie 头提取 STOKEN
+func extractStokenFromResponse(resp *http.Response) string {
 	for _, c := range resp.Header.Values("Set-Cookie") {
 		if !strings.Contains(c, "STOKEN=") {
 			continue
@@ -371,7 +386,6 @@ func refreshStoken(bduss, ptoken string) string {
 			}
 		}
 	}
-
 	global.Log.Warn("未从响应中获取到 STOKEN")
 	return ""
 }
@@ -390,6 +404,7 @@ func verifyBaiduLogin(bduss, stoken string) *baiduLoginStatus {
 	defer resp.Body.Close()
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		global.Log.Errorf("读取登录状态响应失败: %v", err)
 		return nil
 	}
 	var status baiduLoginStatus
@@ -434,7 +449,7 @@ func verifyAndFinalize(login *BaiduLoginResult, rememberLogin bool) bool {
 	} else {
 		login.VipType = 0
 	}
-	currentBaiduCredential = login
+	setCurrentCredential(login)
 	// 勾选记住登录时保存到本地（data 目录，AES 加密）
 	if rememberLogin {
 		if err := saveBaiduCredential(login); err != nil {
@@ -448,15 +463,42 @@ func verifyAndFinalize(login *BaiduLoginResult, rememberLogin bool) bool {
 }
 
 // ==================== 凭证管理 ====================
+//
+// currentBaiduCredential 会被登录/登出/文件操作等多个 Wails 调用 goroutine 并发访问，
+// 统一通过 credentialMu 读写锁保护；读取侧一律使用值拷贝，避免 TOCTOU 空指针。
+var credentialMu sync.RWMutex
 
-// GetBaiduCredential 获取当前登录凭证
-func (a *App) GetBaiduCredential() *BaiduLoginResult {
-	return currentBaiduCredential
+func setCurrentCredential(login *BaiduLoginResult) {
+	credentialMu.Lock()
+	defer credentialMu.Unlock()
+	currentBaiduCredential = login
+}
+
+// currentCredentialSnapshot 返回当前凭证的值拷贝，未登录返回 nil
+func currentCredentialSnapshot() *BaiduLoginResult {
+	credentialMu.RLock()
+	defer credentialMu.RUnlock()
+	if currentBaiduCredential == nil {
+		return nil
+	}
+	copied := *currentBaiduCredential
+	return &copied
+}
+
+// updateCurrentCredentialStoken 原地更新当前凭证的 STOKEN（STOKEN 刷新后回写）
+func updateCurrentCredentialStoken(stoken string) bool {
+	credentialMu.Lock()
+	defer credentialMu.Unlock()
+	if currentBaiduCredential == nil {
+		return false
+	}
+	currentBaiduCredential.SToken = stoken
+	return true
 }
 
 // BaiduLogout 退出登录，清除凭证（同时删除本地保存的登录信息）
 func (a *App) BaiduLogout() bool {
-	currentBaiduCredential = nil
+	setCurrentCredential(nil)
 	clearBaiduCredential()
 	global.Log.Info("已退出百度账号登录")
 	return true

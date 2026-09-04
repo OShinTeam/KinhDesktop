@@ -105,5 +105,14 @@
     "send_notify": "알림 보내기",
     "notification_received": "알림을 수신했습니다",
     "file": "파일",
-    "process_name": "프로세스 이름"
+    "process_name": "프로세스 이름",
+    "file_refresh": "새로 고침",
+    "btn_logout": "로그아웃",
+    "logout_confirm_title": "로그아웃",
+    "logout_confirm_message": "로그아웃하시겠습니까? 저장된 로그인 정보가 삭제됩니다.",
+    "logout_confirm_ok": "로그아웃",
+    "logout_confirm_cancel": "취소",
+    "logout_success": "로그아웃되었습니다",
+    "logout_failed": "로그아웃 실패",
+    "qr_network_error": "네트워크 오류로 QR 폴링이 중지되었습니다. QR 코드를 새로고침해 주세요."
 }

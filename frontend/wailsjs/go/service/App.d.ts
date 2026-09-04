@@ -7,11 +7,7 @@ export function BaiduLogout():Promise<boolean>;
 
 export function BaiduQRLogin(arg1:string,arg2:boolean):Promise<service.BaiduLoginResult>;
 
-export function Flashtime():Promise<void>;
-
 export function GetALLLang():Promise<Array<global.LanguageInfo>>;
-
-export function GetBaiduCredential():Promise<service.BaiduLoginResult>;
 
 export function GetBaiduFileList(arg1:string):Promise<service.BaiduFileListResult>;
 
@@ -34,10 +30,6 @@ export function GetLogLevel():Promise<string>;
 export function GetProcessName():Promise<string>;
 
 export function GetSystemInfo():Promise<service.SystemInfo>;
-
-export function Gettestjson():Promise<string>;
-
-export function Greet(arg1:string):Promise<string>;
 
 export function LoginWithCookie(arg1:string,arg2:string,arg3:boolean):Promise<service.BaiduLoginResult>;
 

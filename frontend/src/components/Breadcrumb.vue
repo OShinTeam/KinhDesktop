@@ -7,17 +7,46 @@ const props = defineProps({
 
 const emit = defineEmits(['navigate'])
 
-// 单段名称最大显示字符数，超出部分省略
-const MAX_NAME_LENGTH = 24
-// 中间层级最多保留的段数（首尾之外）
-const MAX_VISIBLE_MIDDLE = 3
-
 const parts = computed(() => props.path.split('/').filter(Boolean))
 const isRoot = computed(() => parts.value.length === 0)
 
+// 单段名称最大显示宽度（按视觉宽度计：全角=2、半角=1）
+const MAX_NAME_WIDTH = 36
+// 中间层级最多保留的段数（首尾之外）
+const MAX_VISIBLE_MIDDLE = 3
+
+// 计算字符串视觉宽度
+function charWidth(ch) {
+  return ch.charCodeAt(0) > 255 ? 2 : 1
+}
+
+function displayWidth(str) {
+  let width = 0
+  for (const ch of str) width += charWidth(ch)
+  return width
+}
+
+// 截断超长名称：保留扩展名，中段以 … 代替
 function truncate(name) {
-  if (!name || name.length <= MAX_NAME_LENGTH) return name
-  return name.slice(0, MAX_NAME_LENGTH - 1) + '…'
+  if (!name) return name
+  if (displayWidth(name) <= MAX_NAME_WIDTH) return name
+
+  const dotIndex = name.lastIndexOf('.')
+  const ext = dotIndex > 0 ? name.slice(dotIndex) : ''
+  const stem = ext ? name.slice(0, dotIndex) : name
+  const extWidth = displayWidth(ext)
+  const ellipsis = '…'
+  const budget = MAX_NAME_WIDTH - extWidth - displayWidth(ellipsis)
+  if (budget <= 0) return ellipsis + ext
+
+  let width = 0
+  let cut = 0
+  for (let i = 0; i < stem.length; i += 1) {
+    width += charWidth(stem[i])
+    if (width > budget) break
+    cut = i + 1
+  }
+  return stem.slice(0, cut) + ellipsis + ext
 }
 
 // 路径过深时屏蔽中间层级：保留前 MAX_VISIBLE_MIDDLE 段与最后一段，其余显示为省略号

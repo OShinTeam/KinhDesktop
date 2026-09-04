@@ -130,5 +130,14 @@
     "no_vip": "无会员",
     "page_files": "我的文件",
     "page_downloads": "下载管理",
-    "page_settings": "设置"
+    "page_settings": "设置",
+    "file_refresh": "刷新",
+    "btn_logout": "退出登录",
+    "logout_confirm_title": "退出登录",
+    "logout_confirm_message": "确定要退出当前账号吗？本地保存的登录信息将被清除。",
+    "logout_confirm_ok": "退出",
+    "logout_confirm_cancel": "取消",
+    "logout_success": "已退出登录",
+    "logout_failed": "退出登录失败",
+    "qr_network_error": "网络异常，扫码轮询已停止，请刷新二维码重试"
 }

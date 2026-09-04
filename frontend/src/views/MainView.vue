@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { GetBaiduFileList, GetBaiduQuota, BaiduLogout } from '../../wailsjs/go/service/App'
 import FileList from '../components/FileList.vue'
 import Breadcrumb from '../components/Breadcrumb.vue'
+import { formatBytes } from '../utils/format'
 import { useI18n } from '../composables/useI18n'
 import {
   FolderOpened, Download, Setting, Refresh, SwitchButton
@@ -32,11 +33,7 @@ const quotaPercent = computed(() => {
 })
 
 function formatQuotaSize(bytes) {
-  const value = Number(bytes) || 0
-  if (value === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const index = Math.min(Math.floor(Math.log(value) / Math.log(1024)), units.length - 1)
-  return `${parseFloat((value / Math.pow(1024, index)).toFixed(2))} ${units[index]}`
+  return formatBytes(bytes, '0 B')
 }
 
 async function loadQuota() {
@@ -77,6 +74,7 @@ function handleFileAction(payload) {
 }
 
 // 退出登录：弹窗确认后调用后端清除凭证（含本地密钥与保存的登录信息）
+// 后端登出失败时保持当前界面，避免本地已登出而后端凭证仍存活的错位状态
 async function handleLogout() {
   try {
     await ElMessageBox.confirm(
@@ -96,7 +94,8 @@ async function handleLogout() {
   try {
     await BaiduLogout()
   } catch (err) {
-    ElMessage.error(String(err))
+    ElMessage.error(t('logout_failed', '退出登录失败') + ': ' + String(err))
+    return
   }
   ElMessage.success(t('logout_success', '已退出登录'))
   emit('logout')

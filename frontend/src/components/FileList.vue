@@ -2,6 +2,7 @@
 import {
   Folder, Document, Picture, VideoPlay, Headset, Tickets, Box, Files, Download
 } from '@element-plus/icons-vue'
+import { formatBytes, formatTimestamp } from '../utils/format'
 
 const props = defineProps({
   files: { type: Array, default: () => [] },
@@ -44,19 +45,11 @@ function fileName(item) {
 }
 
 function formatSize(size) {
-  const value = Number(size)
-  if (!value && value !== 0) return '-'
-  if (value === 0) return '0 B'
-  const units = ['B', 'KB', 'MB', 'GB', 'TB']
-  const index = Math.floor(Math.log(value) / Math.log(1024))
-  const unit = units[Math.min(index, units.length - 1)]
-  const num = value / Math.pow(1024, Math.min(index, units.length - 1))
-  return `${parseFloat(num.toFixed(2))} ${unit}`
+  return formatBytes(size)
 }
 
 function formatTime(timestamp) {
-  if (!timestamp) return '-'
-  return new Date(Number(timestamp) * 1000).toLocaleString()
+  return formatTimestamp(timestamp)
 }
 
 function fileMeta(item) {

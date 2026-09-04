@@ -55,26 +55,6 @@ export namespace global {
 
 export namespace service {
 	
-	export class BaiduFileThumbs {
-	    icon?: string;
-	    image?: string;
-	    url1?: string;
-	    url2?: string;
-	    url3?: string;
-	
-	    static createFrom(source: any = {}) {
-	        return new BaiduFileThumbs(source);
-	    }
-	
-	    constructor(source: any = {}) {
-	        if ('string' === typeof source) source = JSON.parse(source);
-	        this.icon = source["icon"];
-	        this.image = source["image"];
-	        this.url1 = source["url1"];
-	        this.url2 = source["url2"];
-	        this.url3 = source["url3"];
-	    }
-	}
 	export class BaiduFileItem {
 	    fs_id: number;
 	    path: string;
@@ -85,7 +65,6 @@ export namespace service {
 	    server_mtime: number;
 	    category: number;
 	    md5?: string;
-	    thumbs?: BaiduFileThumbs;
 	
 	    static createFrom(source: any = {}) {
 	        return new BaiduFileItem(source);
@@ -102,26 +81,7 @@ export namespace service {
 	        this.server_mtime = source["server_mtime"];
 	        this.category = source["category"];
 	        this.md5 = source["md5"];
-	        this.thumbs = this.convertValues(source["thumbs"], BaiduFileThumbs);
 	    }
-	
-		convertValues(a: any, classs: any, asMap: boolean = false): any {
-		    if (!a) {
-		        return a;
-		    }
-		    if (a.slice && a.map) {
-		        return (a as any[]).map(elem => this.convertValues(elem, classs));
-		    } else if ("object" === typeof a) {
-		        if (asMap) {
-		            for (const key of Object.keys(a)) {
-		                a[key] = new classs(a[key]);
-		            }
-		            return a;
-		        }
-		        return new classs(a);
-		    }
-		    return a;
-		}
 	}
 	export class BaiduFileListResult {
 	    success: boolean;
@@ -159,7 +119,6 @@ export namespace service {
 		    return a;
 		}
 	}
-	
 	export class BaiduLoginResult {
 	    success: boolean;
 	    username: string;

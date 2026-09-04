@@ -130,5 +130,14 @@
     "no_vip": "No VIP",
     "page_files": "My Files",
     "page_downloads": "Downloads",
-    "page_settings": "Settings"
+    "page_settings": "Settings",
+    "file_refresh": "Refresh",
+    "btn_logout": "Log Out",
+    "logout_confirm_title": "Log Out",
+    "logout_confirm_message": "Are you sure you want to log out? Locally saved login info will be cleared.",
+    "logout_confirm_ok": "Log Out",
+    "logout_confirm_cancel": "Cancel",
+    "logout_success": "Logged out",
+    "logout_failed": "Log out failed",
+    "qr_network_error": "Network error, QR polling stopped. Please refresh the QR code."
 }

@@ -105,5 +105,14 @@
     "send_notify": "通知を送信",
     "notification_received": "通知を受信しました",
     "file": "ファイル",
-    "process_name": "プロセス名"
+    "process_name": "プロセス名",
+    "file_refresh": "更新",
+    "btn_logout": "ログアウト",
+    "logout_confirm_title": "ログアウト",
+    "logout_confirm_message": "ログアウトしますか？保存されたログイン情報は削除されます。",
+    "logout_confirm_ok": "ログアウト",
+    "logout_confirm_cancel": "キャンセル",
+    "logout_success": "ログアウトしました",
+    "logout_failed": "ログアウトに失敗しました",
+    "qr_network_error": "ネットワークエラーのためQRコードの監視を停止しました。QRコードを更新してください。"
 }

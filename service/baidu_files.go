@@ -9,25 +9,16 @@ import (
 	"kinh-desktop/global"
 )
 
-type BaiduFileThumbs struct {
-	Icon  string `json:"icon,omitempty"`
-	Image string `json:"image,omitempty"`
-	URL1  string `json:"url1,omitempty"`
-	URL2  string `json:"url2,omitempty"`
-	URL3  string `json:"url3,omitempty"`
-}
-
 type BaiduFileItem struct {
-	FsID           int64            `json:"fs_id"`
-	Path           string           `json:"path"`
-	Filename       string           `json:"filename"`
-	ServerFilename string           `json:"server_filename"`
-	Size           int64            `json:"size"`
-	IsDir          int              `json:"isdir"`
-	ServerMtime    int64            `json:"server_mtime"`
-	Category       int              `json:"category"`
-	MD5            string           `json:"md5,omitempty"`
-	Thumbs         *BaiduFileThumbs `json:"thumbs,omitempty"`
+	FsID           int64  `json:"fs_id"`
+	Path           string `json:"path"`
+	Filename       string `json:"filename"`
+	ServerFilename string `json:"server_filename"`
+	Size           int64  `json:"size"`
+	IsDir          int    `json:"isdir"`
+	ServerMtime    int64  `json:"server_mtime"`
+	Category       int    `json:"category"`
+	MD5            string `json:"md5,omitempty"`
 }
 
 type BaiduFileListResult struct {
@@ -58,11 +49,13 @@ type baiduQuotaResponse struct {
 
 // GetBaiduQuota 获取网盘容量信息（GET /api/quota?checkfree=1&checkexpire=1）
 func (a *App) GetBaiduQuota() (*BaiduQuotaInfo, error) {
-	if currentBaiduCredential == nil || currentBaiduCredential.BDUSS == "" {
+	// 一次性取值拷贝，避免并发登出导致的空指针
+	credential := currentCredentialSnapshot()
+	if credential == nil || credential.BDUSS == "" {
 		return nil, fmt.Errorf("百度网盘账号未登录")
 	}
 
-	cookie := "BDUSS=" + currentBaiduCredential.BDUSS + ";PANPSC=;BAIDUID=1;ndut_fmt=" + getndut() + ";STOKEN=" + currentBaiduCredential.SToken
+	cookie := "BDUSS=" + credential.BDUSS + ";PANPSC=;BAIDUID=1;ndut_fmt=" + getndut() + ";STOKEN=" + credential.SToken
 	apiURL := "https://pan.baidu.com/api/quota?checkfree=1&checkexpire=1"
 
 	resp, err := baiduGetWithResponse(apiURL, "netdisk;Mo", cookie)
@@ -141,16 +134,17 @@ func (a *App) GetBaiduFileList(dir string) (*BaiduFileListResult, error) {
 	if dir == "" {
 		dir = "/"
 	}
-	if currentBaiduCredential == nil || currentBaiduCredential.BDUSS == "" {
+	// 一次性取值拷贝，避免并发登出导致的空指针
+	credential := currentCredentialSnapshot()
+	if credential == nil || credential.BDUSS == "" {
 		return nil, fmt.Errorf("百度网盘账号未登录")
 	}
 
-	credential := currentBaiduCredential
 	stoken := credential.SToken
 	if stoken == "" {
 		stoken = refreshStoken(credential.BDUSS, credential.PToken)
 		if stoken != "" {
-			credential.SToken = stoken
+			updateCurrentCredentialStoken(stoken)
 		}
 	}
 
@@ -180,7 +174,7 @@ func (a *App) GetBaiduFileList(dir string) (*BaiduFileListResult, error) {
 		global.Log.Infof("文件列表返回 errno=%d，尝试刷新 STOKEN 后重试", result.Errno)
 		newStoken := refreshStoken(credential.BDUSS, credential.PToken)
 		if newStoken != "" && newStoken != stoken {
-			credential.SToken = newStoken
+			updateCurrentCredentialStoken(newStoken)
 			updateSavedCredentialStoken(newStoken)
 			return fetchBaiduFileListOnce(dir, credential.BDUSS, newStoken)
 		}

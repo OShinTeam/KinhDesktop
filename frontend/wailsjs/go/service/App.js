@@ -10,16 +10,8 @@ export function BaiduQRLogin(arg1, arg2) {
   return window['go']['service']['App']['BaiduQRLogin'](arg1, arg2);
 }
 
-export function Flashtime() {
-  return window['go']['service']['App']['Flashtime']();
-}
-
 export function GetALLLang() {
   return window['go']['service']['App']['GetALLLang']();
-}
-
-export function GetBaiduCredential() {
-  return window['go']['service']['App']['GetBaiduCredential']();
 }
 
 export function GetBaiduFileList(arg1) {
@@ -64,14 +56,6 @@ export function GetProcessName() {
 
 export function GetSystemInfo() {
   return window['go']['service']['App']['GetSystemInfo']();
-}
-
-export function Gettestjson() {
-  return window['go']['service']['App']['Gettestjson']();
-}
-
-export function Greet(arg1) {
-  return window['go']['service']['App']['Greet'](arg1);
 }
 
 export function LoginWithCookie(arg1, arg2, arg3) {

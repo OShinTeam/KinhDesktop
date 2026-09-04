@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	goruntime "runtime"
@@ -26,18 +25,6 @@ func NewApp() *App {
 
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
-}
-
-func (a *App) Greet(name string) string {
-	return greet(name)
-}
-
-func (a *App) Flashtime() {
-	flashtime(a)
-}
-
-func (a *App) Gettestjson() string {
-	return getJSONString()
 }
 
 func (a *App) GetLangTextMap() map[string]string {
@@ -203,28 +190,55 @@ func (a *App) SaveFileSelect() string {
 	return file
 }
 
-func (a *App) ReadFileContent(path string) string {
-	if path == "" {
+// allowedReadDir 允许读取的目录白名单（相对路径），防止前端任意路径读取本机文件
+var allowedReadDirs = []string{"data", "logs"}
+
+// resolveAllowedPath 校验并解析文件路径：仅允许白名单目录内的相对路径
+// 返回空串表示路径非法
+func resolveAllowedPath(filename string) string {
+	if filename == "" || strings.Contains(filename, "..") || filepath.IsAbs(filename) {
 		return ""
 	}
-	data, err := os.ReadFile(path)
+	cleaned := filepath.Clean(filename)
+	for _, dir := range allowedReadDirs {
+		if strings.HasPrefix(cleaned, dir+string(filepath.Separator)) {
+			return cleaned
+		}
+	}
+	return ""
+}
+
+func (a *App) ReadFileContent(path string) string {
+	resolved := resolveAllowedPath(path)
+	if resolved == "" {
+		global.Log.Warnf("非法的文件读取路径: %s", path)
+		return ""
+	}
+	data, err := os.ReadFile(resolved)
 	if err != nil {
 		global.Log.Warnf("读取文件失败: %v", err)
-		return fmt.Sprintf("读取失败: %v", err)
+		return ""
 	}
 	return string(data)
 }
 
 func (a *App) WriteFileContent(path string, content string) bool {
-	if path == "" {
+	// 写入仅限日志目录（日志诊断场景），data 目录不允许前端写入
+	if !strings.HasPrefix(filepath.Clean(path), "logs"+string(filepath.Separator)) ||
+		strings.Contains(path, "..") || filepath.IsAbs(path) {
+		global.Log.Warnf("非法的文件写入路径: %s", path)
 		return false
 	}
-	err := os.WriteFile(path, []byte(content), 0644)
-	if err != nil {
+	resolved := filepath.Clean(path)
+	if err := os.MkdirAll(filepath.Dir(resolved), 0755); err != nil {
+		global.Log.Warnf("创建写入目录失败: %v", err)
+		return false
+	}
+	if err := os.WriteFile(resolved, []byte(content), 0644); err != nil {
 		global.Log.Warnf("写入文件失败: %v", err)
 		return false
 	}
-	global.Log.Infof("文件写入成功: %s", path)
+	global.Log.Infof("文件写入成功: %s", resolved)
 	return true
 }
 
