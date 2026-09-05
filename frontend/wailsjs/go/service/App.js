@@ -10,8 +10,20 @@ export function BaiduQRLogin(arg1, arg2) {
   return window['go']['service']['App']['BaiduQRLogin'](arg1, arg2);
 }
 
+export function CheckOShinDUpdate() {
+  return window['go']['service']['App']['CheckOShinDUpdate']();
+}
+
+export function CheckUpdate() {
+  return window['go']['service']['App']['CheckUpdate']();
+}
+
 export function GetALLLang() {
   return window['go']['service']['App']['GetALLLang']();
+}
+
+export function GetAppVersion() {
+  return window['go']['service']['App']['GetAppVersion']();
 }
 
 export function GetBaiduFileList(arg1) {
@@ -50,8 +62,16 @@ export function GetLogLevel() {
   return window['go']['service']['App']['GetLogLevel']();
 }
 
+export function GetOShinDVersion() {
+  return window['go']['service']['App']['GetOShinDVersion']();
+}
+
 export function GetProcessName() {
   return window['go']['service']['App']['GetProcessName']();
+}
+
+export function GetSettings() {
+  return window['go']['service']['App']['GetSettings']();
 }
 
 export function GetSystemInfo() {
@@ -88,6 +108,10 @@ export function RestoreLogin() {
 
 export function SaveFileSelect() {
   return window['go']['service']['App']['SaveFileSelect']();
+}
+
+export function SaveSettings(arg1) {
+  return window['go']['service']['App']['SaveSettings'](arg1);
 }
 
 export function SetLanguage(arg1) {

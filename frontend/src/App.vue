@@ -5,6 +5,9 @@ import { RestoreLogin } from '../wailsjs/go/service/App'
 import HeaderBar from './components/HeaderBar.vue'
 import LoginView from './views/LoginView.vue'
 import MainView from './views/MainView.vue'
+import { useI18n } from './composables/useI18n'
+
+const { t } = useI18n()
 
 // 登录成功后保存凭证，切换到主界面
 const credential = ref(null)
@@ -38,7 +41,7 @@ onMounted(async () => {
       <!-- 启动检测中 -->
       <div v-if="checking" class="boot-loading">
         <el-icon class="boot-spinner is-loading"><Loading /></el-icon>
-        <span>正在检测登录状态...</span>
+        <span>{{ t('boot_checking', '正在检测登录状态...') }}</span>
       </div>
       <!-- 主界面 -->
       <MainView v-else-if="credential" :credential="credential" @logout="credential = null" />
@@ -55,7 +58,7 @@ onMounted(async () => {
   display: flex;
   flex-direction: column;
   background-color: #f5f7fa;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* 字体走全局 --app-font-family（style.css 定义，body 已继承），不再单独声明 */
   user-select: none;
 }
 

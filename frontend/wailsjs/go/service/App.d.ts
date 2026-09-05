@@ -7,7 +7,13 @@ export function BaiduLogout():Promise<boolean>;
 
 export function BaiduQRLogin(arg1:string,arg2:boolean):Promise<service.BaiduLoginResult>;
 
+export function CheckOShinDUpdate():Promise<service.OShinDUpdateResult>;
+
+export function CheckUpdate():Promise<service.UpdateCheckResult>;
+
 export function GetALLLang():Promise<Array<global.LanguageInfo>>;
+
+export function GetAppVersion():Promise<string>;
 
 export function GetBaiduFileList(arg1:string):Promise<service.BaiduFileListResult>;
 
@@ -27,7 +33,11 @@ export function GetLogFiles():Promise<Array<string>>;
 
 export function GetLogLevel():Promise<string>;
 
+export function GetOShinDVersion():Promise<service.OShinDInfo>;
+
 export function GetProcessName():Promise<string>;
+
+export function GetSettings():Promise<service.AppSettings>;
 
 export function GetSystemInfo():Promise<service.SystemInfo>;
 
@@ -46,6 +56,8 @@ export function ReadFileContent(arg1:string):Promise<string>;
 export function RestoreLogin():Promise<service.BaiduLoginResult>;
 
 export function SaveFileSelect():Promise<string>;
+
+export function SaveSettings(arg1:service.AppSettings):Promise<string>;
 
 export function SetLanguage(arg1:string):Promise<boolean>;
 

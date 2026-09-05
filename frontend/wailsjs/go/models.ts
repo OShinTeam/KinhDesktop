@@ -55,6 +55,28 @@ export namespace global {
 
 export namespace service {
 	
+	export class AppSettings {
+	    language: string;
+	    close_action: string;
+	    download_user_agent: string;
+	    download_threads: number;
+	    download_dir: string;
+	    log_level: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new AppSettings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.language = source["language"];
+	        this.close_action = source["close_action"];
+	        this.download_user_agent = source["download_user_agent"];
+	        this.download_threads = source["download_threads"];
+	        this.download_dir = source["download_dir"];
+	        this.log_level = source["log_level"];
+	    }
+	}
 	export class BaiduFileItem {
 	    fs_id: number;
 	    path: string;
@@ -197,6 +219,44 @@ export namespace service {
 	        this.message = source["message"];
 	    }
 	}
+	export class OShinDInfo {
+	    installed: boolean;
+	    version: string;
+	    repo_url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OShinDInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.installed = source["installed"];
+	        this.version = source["version"];
+	        this.repo_url = source["repo_url"];
+	    }
+	}
+	export class OShinDUpdateResult {
+	    success: boolean;
+	    message: string;
+	    latest_version: string;
+	    has_update: boolean;
+	    changelog: string;
+	    page_url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new OShinDUpdateResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.message = source["message"];
+	        this.latest_version = source["latest_version"];
+	        this.has_update = source["has_update"];
+	        this.changelog = source["changelog"];
+	        this.page_url = source["page_url"];
+	    }
+	}
 	export class SystemInfo {
 	    os: string;
 	    arch: string;
@@ -219,6 +279,30 @@ export namespace service {
 	        this.go_ver = source["go_ver"];
 	        this.time = source["time"];
 	        this.process_name = source["process_name"];
+	    }
+	}
+	export class UpdateCheckResult {
+	    success: boolean;
+	    message: string;
+	    current_version: string;
+	    latest_version: string;
+	    has_update: boolean;
+	    changelog: string;
+	    page_url: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateCheckResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.message = source["message"];
+	        this.current_version = source["current_version"];
+	        this.latest_version = source["latest_version"];
+	        this.has_update = source["has_update"];
+	        this.changelog = source["changelog"];
+	        this.page_url = source["page_url"];
 	    }
 	}
 

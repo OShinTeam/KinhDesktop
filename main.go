@@ -18,7 +18,12 @@ var langFS embed.FS
 
 func main() {
 	global.LangFS = langFS
+
+	// 启动顺序：加载设置（语言）→ 初始化日志/语言系统 → 按设置应用日志等级
+	// 语言必须在 InitLang 前就位，否则重启后按默认 zh-CN 显示
+	service.InitSettings()
 	global.Init()
+	service.ApplyLogSetting()
 
 	appName := global.GetProcessName()
 	App := service.NewApp()

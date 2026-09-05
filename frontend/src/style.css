@@ -1,15 +1,23 @@
+:root {
+    /* 全局字体栈：页面文本与 Element Plus 组件统一引用此变量 */
+    --app-font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
+    "Microsoft YaHei", sans-serif;
+}
+
 html {
-    background-color: rgba(27, 38, 54, 1);
-    text-align: center;
-    color: white;
+    background-color: #f5f7fa;
 }
 
 body {
     margin: 0;
-    color: white;
-    font-family: "Nunito", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
-    "Oxygen", "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-    sans-serif;
+    color: #303133;
+    font-family: var(--app-font-family);
+}
+
+/* Element Plus 组件（按钮/输入框等）与页面文本使用同一字体栈 */
+:root {
+    --el-font-family: var(--app-font-family);
 }
 
 @font-face {
@@ -22,7 +30,6 @@ body {
 
 #app {
     height: 100vh;
-    text-align: center;
 }
 
 body, html {

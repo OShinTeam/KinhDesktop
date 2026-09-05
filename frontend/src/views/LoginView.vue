@@ -248,7 +248,7 @@ onBeforeUnmount(() => {
               >
                 {{ t('btn_login', '登 录') }}
               </el-button>
-              <p class="cookie-tip">{{ t('cookie_tip', '不需要包含BDUSS=/PTOKEN=') }}</p>
+              <p class="cookie-tip">{{ t('cookie_tip', '填写 BDUSS 和 PTOKEN 的值即可') }}</p>
             </el-form>
           </div>
         </el-tab-pane>

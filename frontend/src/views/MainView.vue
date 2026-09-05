@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { GetBaiduFileList, GetBaiduQuota, BaiduLogout } from '../../wailsjs/go/service/App'
 import FileList from '../components/FileList.vue'
 import Breadcrumb from '../components/Breadcrumb.vue'
+import SettingsView from './SettingsView.vue'
 import { formatBytes } from '../utils/format'
 import { useI18n } from '../composables/useI18n'
 import {
@@ -23,6 +24,42 @@ const activePage = ref('files')
 const files = ref([])
 const loading = ref(false)
 const currentDir = ref('/')
+
+// 设置页组件引用：脏检测（未保存修改时切换页面需拦截确认）
+const settingsRef = ref(null)
+
+// 侧边栏菜单选择：设置页有未保存修改时弹窗确认（保存并离开 / 放弃修改 / 留在本页）
+async function handleMenuSelect(key) {
+  if (activePage.value === key) return
+  if (activePage.value === 'settings' && settingsRef.value?.checkDirty?.()) {
+    let action = 'stay'
+    try {
+      await ElMessageBox.confirm(
+        t('settings_unsaved_message', '当前有未保存的设置修改，离开将丢失这些更改。'),
+        t('settings_unsaved_title', '未保存的修改'),
+        {
+          confirmButtonText: t('settings_unsaved_save', '保存并离开'),
+          cancelButtonText: t('settings_unsaved_discard', '放弃修改'),
+          distinguishCancelAndClose: true,
+          type: 'warning',
+        }
+      )
+      action = 'save'
+    } catch (e) {
+      // cancel = 放弃修改并离开；close/ESC = 留在本页
+      action = (e === 'cancel') ? 'discard' : 'stay'
+    }
+
+    if (action === 'save') {
+      await settingsRef.value.saveAndReturn() // 保存完成后再切页
+    } else if (action === 'discard') {
+      settingsRef.value.discardChanges() // 恢复到已保存状态后离开
+    } else {
+      return // 留在本页，不切换
+    }
+  }
+  activePage.value = key
+}
 
 // 网盘容量信息
 const quota = ref({ total: 0, used: 0 })
@@ -54,7 +91,7 @@ async function loadFiles(dir = '/') {
     const result = await GetBaiduFileList(dir)
     if (!result?.success) {
       files.value = []
-      ElMessage.error(result?.message || '读取文件列表失败')
+      ElMessage.error(result?.message || t('file_list_load_failed', '读取文件列表失败'))
       return
     }
 
@@ -62,7 +99,7 @@ async function loadFiles(dir = '/') {
     currentDir.value = result.dir || dir
   } catch (error) {
     files.value = []
-    ElMessage.error(error?.message || String(error) || '读取文件列表失败')
+    ElMessage.error(error?.message || String(error) || t('file_list_load_failed', '读取文件列表失败'))
   } finally {
     loading.value = false
   }
@@ -129,7 +166,7 @@ function vipInfo(vipType) {
       <!-- 顶部：网盘容量卡片 -->
       <div class="quota-card">
         <div class="quota-title">
-          <span>网盘空间</span>
+          <span>{{ t('disk_space', '网盘空间') }}</span>
           <span class="quota-percent">{{ quotaPercent }}%</span>
         </div>
         <el-progress
@@ -144,7 +181,7 @@ function vipInfo(vipType) {
       </div>
 
       <!-- 导航菜单 -->
-      <el-menu :default-active="activePage" class="sidebar-menu" @select="activePage = $event">
+      <el-menu :default-active="activePage" class="sidebar-menu" @select="handleMenuSelect">
         <el-menu-item v-for="item in menuItems" :key="item.key" :index="item.key">
           <el-icon><component :is="item.icon" /></el-icon>
           <span>{{ t('page_' + item.key, item.key) }}</span>
@@ -188,7 +225,6 @@ function vipInfo(vipType) {
           <Breadcrumb :path="currentDir" @navigate="loadFiles" />
           <el-button
             class="files-refresh"
-            size="small"
             :icon="Refresh"
             :loading="loading"
             @click="loadFiles(currentDir)"
@@ -209,9 +245,10 @@ function vipInfo(vipType) {
       <div v-else-if="activePage === 'downloads'" class="page-placeholder">
         <el-empty :description="t('page_downloads', '下载管理')" />
       </div>
-      <div v-else-if="activePage === 'settings'" class="page-placeholder">
-        <el-empty :description="t('page_settings', '设置')" />
-      </div>
+      <SettingsView
+        v-else-if="activePage === 'settings'"
+        ref="settingsRef"
+      />
     </main>
   </div>
 </template>

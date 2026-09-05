@@ -1,5 +1,8 @@
 <script setup>
 import { computed } from 'vue'
+import { useI18n } from '../composables/useI18n'
+
+const { t } = useI18n()
 
 const props = defineProps({
   path: { type: String, default: '/' }
@@ -77,13 +80,13 @@ function goBack() {
 <template>
   <div class="breadcrumb">
     <template v-if="isRoot">
-      <span class="crumb current">全部文件</span>
+      <span class="crumb current">{{ t('all_files', '全部文件') }}</span>
     </template>
 
     <template v-else>
-      <button class="crumb link" type="button" @click="goBack">返回上一级</button>
+      <button class="crumb link" type="button" @click="goBack">{{ t('go_back', '返回上一级') }}</button>
       <span class="divider">|</span>
-      <button class="crumb link" type="button" @click="emit('navigate', '/')">全部文件</button>
+      <button class="crumb link" type="button" @click="emit('navigate', '/')">{{ t('all_files', '全部文件') }}</button>
       <span class="divider">&gt;</span>
 
       <template v-for="(part, position) in visibleParts" :key="position">
@@ -119,7 +122,7 @@ function goBack() {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
-  font-size: 13px;
+  font-size: 14px;
   color: #606266;
 }
 
@@ -129,7 +132,7 @@ function goBack() {
   padding: 0;
   border: 0;
   background: transparent;
-  font-size: 13px;
+  font-size: 14px;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -144,6 +147,7 @@ function goBack() {
   text-decoration: underline;
 }
 
+/* 当前层级与根目录：深色区分位置，不加粗（避免长路径下头重脚轻） */
 .crumb.current {
   color: #303133;
   cursor: default;
