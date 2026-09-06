@@ -278,11 +278,15 @@ func fetchLatestRelease(repo string) (*githubRelease, error) {
 }
 
 // oshindDownloadOptions 组装组件下载选项 JSON（UA/线程/目录/代理/分片 等）
-func oshindDownloadOptions(url, ua, outputDir, proxy string, connections, chunkKB int) string {
+// fileName 非空时透传 file_name 选项（同名去重后的最终文件名，组件按此落盘）
+func oshindDownloadOptions(url, fileName, ua, outputDir, proxy string, connections, chunkKB int) string {
 	opts := map[string]interface{}{
 		"url":         url,
 		"output_dir":  outputDir,
 		"connections": connections,
+	}
+	if fileName != "" {
+		opts["file_name"] = fileName
 	}
 	if chunkKB > 0 {
 		opts["chunk_size"] = int64(chunkKB) * 1024

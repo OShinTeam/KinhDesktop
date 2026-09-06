@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -19,6 +20,8 @@ import (
 //           前端轮询 GetDownloadTasks（透传组件状态 JSON）。
 // 组件不存在：无任务能力，下载管理页展示安装引导。
 // 代理设置：download_proxy 非空时透传给组件 options.proxy。
+// 同名去重：提交前检查磁盘（成品/.tmp/.oshin）与活动任务，重名自动重命名 name(n).ext；
+//           文件名未知时若存在同 URL 活动任务则显性报错，避免多任务同时写同一文件。
 
 type DownloadTaskInfo struct {
 	TaskID   string `json:"task_id"`
@@ -44,7 +47,86 @@ type downloadTaskEntry struct {
 var (
 	downloadMu    sync.Mutex
 	downloadTasks []downloadTaskEntry // 提交顺序保留（新任务追加尾部）
+
+	// downloadSubmitMu 提交串行锁：查重（磁盘+台账）与台账追加需原子完成，
+	// 避免并发提交同名文件时双双通过检查
+	downloadSubmitMu sync.Mutex
 )
+
+// activeStatuses 组件侧活动状态（占用输出文件，提交同名任务时需避让）
+var activeStatuses = map[string]bool{
+	"PENDING": true, "PROBING": true, "DOWNLOADING": true,
+	"RESUMING": true, "VERIFYING": true, "PAUSED": true,
+}
+
+// downloadTaskActive 判断任务是否处于占用输出文件的活动状态（组件不可用/状态未知时保守视为活动）
+func downloadTaskActive(taskID string) bool {
+	status := oshindTaskStatus(taskID)
+	if status == "" {
+		return true
+	}
+	var s struct {
+		Status string `json:"status"`
+	}
+	if json.Unmarshal([]byte(status), &s) != nil || s.Status == "" {
+		return true
+	}
+	return activeStatuses[s.Status]
+}
+
+// fileNameTaken 指定文件名在输出目录是否被占用：
+// 磁盘已有成品 / .tmp / .oshin 任一，或活动任务台账同名（Windows 不区分大小写）
+func fileNameTaken(outputDir, name string, activeNames map[string]bool) bool {
+	base := filepath.Join(outputDir, name)
+	for _, p := range []string{base, base + ".tmp", base + ".oshin"} {
+		if _, err := os.Stat(p); err == nil {
+			return true
+		}
+	}
+	return activeNames[strings.ToLower(name)]
+}
+
+// dedupeFileName 冲突时自动重命名为 name(1).ext、name(2).ext … 直至可用
+func dedupeFileName(outputDir, name string, activeNames map[string]bool) string {
+	if !fileNameTaken(outputDir, name, activeNames) {
+		return name
+	}
+	ext := filepath.Ext(name)
+	base := strings.TrimSuffix(name, ext)
+	for i := 1; ; i++ {
+		candidate := fmt.Sprintf("%s(%d)%s", base, i, ext)
+		if !fileNameTaken(outputDir, candidate, activeNames) {
+			return candidate
+		}
+	}
+}
+
+// resolveUniqueDownloadName 提交前文件名去重（须持有 downloadSubmitMu）：
+//   - 文件名已知：与磁盘文件或活动任务重名时自动重命名 name(1).ext
+//   - 文件名未知（组件 probe 后才知晓）：存在同 URL 活动任务时显性报错，拒绝创建
+//
+// 返回最终文件名（未知时为空串）与冲突提示（无冲突为空）
+func resolveUniqueDownloadName(outputDir, name, rawURL string) (finalName string, conflict string) {
+	downloadMu.Lock()
+	defer downloadMu.Unlock()
+
+	if strings.TrimSpace(name) == "" {
+		for _, entry := range downloadTasks {
+			if entry.URL == rawURL && downloadTaskActive(entry.TaskID) {
+				return "", "已存在相同文件的下载任务（文件名待识别，无法自动重命名），请等待其完成或先移除原任务"
+			}
+		}
+		return "", ""
+	}
+
+	taken := make(map[string]bool)
+	for _, entry := range downloadTasks {
+		if entry.FileName != "" && downloadTaskActive(entry.TaskID) {
+			taken[strings.ToLower(entry.FileName)] = true
+		}
+	}
+	return dedupeFileName(outputDir, name, taken), ""
+}
 
 // SubmitDownload 解析并提交下载任务（组件存在时可用）
 // fsID >= 0 表示网盘文件（先解析直链），url 非空表示自定义任务直接下载
@@ -78,16 +160,29 @@ func (a *App) SubmitDownload(url, fileName string, fsID int64) *DownloadSubmitRe
 	}
 
 	settings := getSettings()
-	opts := oshindDownloadOptions(url, effectiveDownloadUA(), settings.DownloadDir, settings.DownloadProxy, settings.DownloadThreads, settings.DownloadChunkKB)
+
+	// 同名文件去重：磁盘/活动任务占用时自动重命名，文件名未知且同 URL 活动任务存在时显性报错
+	downloadSubmitMu.Lock()
+	finalName, conflict := resolveUniqueDownloadName(settings.DownloadDir, fileName, url)
+	if conflict != "" {
+		downloadSubmitMu.Unlock()
+		result.Message = conflict
+		return result
+	}
+	fileName = finalName
+
+	opts := oshindDownloadOptions(url, fileName, effectiveDownloadUA(), settings.DownloadDir, settings.DownloadProxy, settings.DownloadThreads, settings.DownloadChunkKB)
 
 	ret, _, err := oshindProcDl.Call(strPtr(url), strPtr(opts))
 	if err != nil && isRealErr(err) {
+		downloadSubmitMu.Unlock()
 		global.Log.Errorf("OShinD 提交下载任务失败: %v", err)
 		result.Message = "提交下载任务失败"
 		return result
 	}
 	taskID := cStringToGo(ret)
 	if taskID == "" {
+		downloadSubmitMu.Unlock()
 		result.Message = "提交下载任务失败（组件返回空任务 ID）"
 		return result
 	}
@@ -100,6 +195,7 @@ func (a *App) SubmitDownload(url, fileName string, fsID int64) *DownloadSubmitRe
 		Created:  time.Now(),
 	})
 	downloadMu.Unlock()
+	downloadSubmitMu.Unlock()
 
 	result.Success = true
 	result.TaskID = taskID
@@ -368,12 +464,25 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 		chunkKB = settings.DownloadChunkKB
 	}
 
+	// 同名文件去重：磁盘/活动任务占用时自动重命名，文件名未知且同 URL 活动任务存在时显性报错
+	downloadSubmitMu.Lock()
+	finalName, conflict := resolveUniqueDownloadName(outputDir, opts.FileName, opts.URL)
+	if conflict != "" {
+		downloadSubmitMu.Unlock()
+		result.Message = conflict
+		return result
+	}
+	opts.FileName = finalName
+
 	options := map[string]interface{}{
 		"output_dir":  outputDir,
 		"connections": connections,
 	}
 	if chunkKB > 0 {
 		options["chunk_size"] = int64(chunkKB) * 1024
+	}
+	if opts.FileName != "" {
+		options["file_name"] = opts.FileName
 	}
 	if ua != "" {
 		options["headers"] = map[string]string{"User-Agent": ua}
@@ -402,18 +511,21 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 
 	optsJSON, err := json.Marshal(options)
 	if err != nil {
+		downloadSubmitMu.Unlock()
 		result.Message = "组装下载选项失败"
 		return result
 	}
 
 	ret, _, callErr := oshindProcDl.Call(strPtr(opts.URL), strPtr(string(optsJSON)))
 	if callErr != nil && isRealErr(callErr) {
+		downloadSubmitMu.Unlock()
 		global.Log.Errorf("OShinD 提交自定义任务失败: %v", callErr)
 		result.Message = "提交下载任务失败"
 		return result
 	}
 	taskID := cStringToGo(ret)
 	if taskID == "" {
+		downloadSubmitMu.Unlock()
 		result.Message = "提交下载任务失败（组件返回空任务 ID）"
 		return result
 	}
@@ -426,6 +538,7 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 		Created:  time.Now(),
 	})
 	downloadMu.Unlock()
+	downloadSubmitMu.Unlock()
 
 	result.Success = true
 	result.TaskID = taskID
