@@ -130,5 +130,8 @@
   "task_status_verifying": "Verifying",
   "task_status_completed": "Completed",
   "task_status_failed": "Failed",
-  "task_status_paused": "Paused"
+  "task_status_paused": "Paused",
+  "task_pause": "Pause",
+  "task_pause_success": "Task paused",
+  "task_pause_failed": "Failed to pause task"
 }

@@ -130,5 +130,8 @@
   "task_status_verifying": "校验中",
   "task_status_completed": "已完成",
   "task_status_failed": "失败",
-  "task_status_paused": "已暂停"
+  "task_status_paused": "已暂停",
+  "task_pause": "暂停",
+  "task_pause_success": "任务已暂停",
+  "task_pause_failed": "暂停任务失败"
 }

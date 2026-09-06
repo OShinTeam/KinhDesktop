@@ -130,5 +130,8 @@
   "task_status_verifying": "検証中",
   "task_status_completed": "完了",
   "task_status_failed": "失敗",
-  "task_status_paused": "一時停止"
+  "task_status_paused": "一時停止",
+  "task_pause": "一時停止",
+  "task_pause_success": "タスクを一時停止しました",
+  "task_pause_failed": "タスクの一時停止に失敗しました"
 }

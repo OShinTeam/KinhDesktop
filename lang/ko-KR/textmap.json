@@ -130,5 +130,8 @@
   "task_status_verifying": "검증 중",
   "task_status_completed": "완료",
   "task_status_failed": "실패",
-  "task_status_paused": "일시 중지"
+  "task_status_paused": "일시 중지",
+  "task_pause": "일시정지",
+  "task_pause_success": "작업이 일시정지되었습니다",
+  "task_pause_failed": "작업 일시정지 실패"
 }
