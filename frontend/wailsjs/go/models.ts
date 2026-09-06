@@ -61,6 +61,7 @@ export namespace service {
 	    download_proxy: string;
 	    download_user_agent: string;
 	    download_threads: number;
+	    download_chunk_kb: number;
 	    download_dir: string;
 	    download_acc_link: string;
 	    log_level: string;
@@ -76,6 +77,7 @@ export namespace service {
 	        this.download_proxy = source["download_proxy"];
 	        this.download_user_agent = source["download_user_agent"];
 	        this.download_threads = source["download_threads"];
+	        this.download_chunk_kb = source["download_chunk_kb"];
 	        this.download_dir = source["download_dir"];
 	        this.download_acc_link = source["download_acc_link"];
 	        this.log_level = source["log_level"];
@@ -264,6 +266,7 @@ export namespace service {
 	    file_name: string;
 	    output_dir: string;
 	    connections: number;
+	    chunk_kb: number;
 	    user_agent: string;
 	    proxy: string;
 	    headers: Record<string, string>;
@@ -281,6 +284,7 @@ export namespace service {
 	        this.file_name = source["file_name"];
 	        this.output_dir = source["output_dir"];
 	        this.connections = source["connections"];
+	        this.chunk_kb = source["chunk_kb"];
 	        this.user_agent = source["user_agent"];
 	        this.proxy = source["proxy"];
 	        this.headers = source["headers"];
