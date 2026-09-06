@@ -133,5 +133,14 @@
   "task_status_paused": "一時停止",
   "task_pause": "一時停止",
   "task_pause_success": "タスクを一時停止しました",
-  "task_pause_failed": "タスクの一時停止に失敗しました"
+  "task_pause_failed": "タスクの一時停止に失敗しました",
+  "task_resume": "再開",
+  "task_resume_success": "タスクを再開しました",
+  "task_resume_failed": "タスクの再開に失敗しました",
+  "task_remove": "タスクを削除",
+  "task_remove_confirm": "このタスクを削除しますか？ファイルの削除の有無にかかわらず、タスクは先にキャンセルされ、バックグラウンドでダウンロードが続くことはありません。",
+  "task_remove_confirm_btn": "削除",
+  "task_remove_delete_files": "ダウンロード済みファイルも削除する",
+  "task_remove_success": "タスクを削除しました",
+  "task_remove_failed": "タスクの削除に失敗しました"
 }
