@@ -339,6 +339,8 @@ onUnmounted(stopPolling)
               :stroke-width="6"
               :status="task.status === 'FAILED' ? 'exception' : task.status === 'COMPLETED' ? 'success' : undefined"
             />
+            <!-- 组件透出的失败原因（OShinD >= 0.0.4 状态接口 error 字段） -->
+            <div v-if="task.error" class="task-error" :title="task.error">{{ task.error }}</div>
           </div>
           <div class="task-ops">
             <el-button
@@ -494,6 +496,16 @@ onUnmounted(stopPolling)
   font-size: 13px;
   line-height: 1.6;
   color: #606266;
+}
+
+/* 组件侧失败原因：单行省略，悬停看全文 */
+.task-error {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #f56c6c;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .page-placeholder {
