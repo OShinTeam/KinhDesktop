@@ -206,7 +206,9 @@ func (a *App) CheckOShinDUpdate() OShinDUpdateResult {
 	installed, version, _ := loadOShinD()
 	if installed {
 		result.CurrentVer = version
-		result.HasUpdate = compareVersion(normalizeVersion(release.TagName), normalizeVersion(version)) > 0
+		// GitHub releases/latest 返回的即最新 tag，直接一致性对比：
+		// 与当前版本不一致即视为可更新，不做点分比较（规避预发布/非标版本号边界）
+		result.HasUpdate = normalizeVersion(release.TagName) != normalizeVersion(version)
 		if result.HasUpdate {
 			result.Message = "发现新版本 " + release.TagName
 		} else {
