@@ -61,6 +61,7 @@ export namespace service {
 	    download_user_agent: string;
 	    download_threads: number;
 	    download_dir: string;
+	    download_acc_link: string;
 	    log_level: string;
 	
 	    static createFrom(source: any = {}) {
@@ -74,7 +75,28 @@ export namespace service {
 	        this.download_user_agent = source["download_user_agent"];
 	        this.download_threads = source["download_threads"];
 	        this.download_dir = source["download_dir"];
+	        this.download_acc_link = source["download_acc_link"];
 	        this.log_level = source["log_level"];
+	    }
+	}
+	export class BaiduDownloadLinkResult {
+	    success: boolean;
+	    fs_id: number;
+	    filename: string;
+	    dlink: string;
+	    message?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new BaiduDownloadLinkResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.fs_id = source["fs_id"];
+	        this.filename = source["filename"];
+	        this.dlink = source["dlink"];
+	        this.message = source["message"];
 	    }
 	}
 	export class BaiduFileItem {

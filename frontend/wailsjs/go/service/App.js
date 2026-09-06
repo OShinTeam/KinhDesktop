@@ -26,6 +26,14 @@ export function GetAppVersion() {
   return window['go']['service']['App']['GetAppVersion']();
 }
 
+export function GetBaiduDownloadLink(arg1) {
+  return window['go']['service']['App']['GetBaiduDownloadLink'](arg1);
+}
+
+export function GetBaiduDownloadLinkRemote(arg1) {
+  return window['go']['service']['App']['GetBaiduDownloadLinkRemote'](arg1);
+}
+
 export function GetBaiduFileList(arg1) {
   return window['go']['service']['App']['GetBaiduFileList'](arg1);
 }

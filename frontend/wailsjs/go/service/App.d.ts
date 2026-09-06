@@ -15,6 +15,10 @@ export function GetALLLang():Promise<Array<global.LanguageInfo>>;
 
 export function GetAppVersion():Promise<string>;
 
+export function GetBaiduDownloadLink(arg1:number):Promise<service.BaiduDownloadLinkResult>;
+
+export function GetBaiduDownloadLinkRemote(arg1:number):Promise<service.BaiduDownloadLinkResult>;
+
 export function GetBaiduFileList(arg1:string):Promise<service.BaiduFileListResult>;
 
 export function GetBaiduQR():Promise<service.BaiduQRCode>;
