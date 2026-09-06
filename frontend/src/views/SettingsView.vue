@@ -191,8 +191,10 @@ async function handleCheckOshind() {
     oshindResult.value = result
     if (!result.success) {
       ElMessage.error(t('update_check_failed', '检查更新失败') + ': ' + result.message)
-    } else {
+    } else if (result.has_update) {
       ElMessage.success(`${t('component_update_found', '组件有新版本')}: ${result.latest_version}`)
+    } else {
+      ElMessage.info(result.message || t('update_latest', '当前已是最新版本'))
     }
   } catch (err) {
     ElMessage.error(t('update_check_failed', '检查更新失败') + ': ' + String(err))
@@ -381,13 +383,16 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
           </div>
         </div>
 
-        <!-- 组件更新提示：仅展示最新版本信息 -->
-        <div v-if="oshindResult?.success" class="update-panel">
+        <!-- 组件更新提示：有更新时展示新版本信息，否则展示后端结论 -->
+        <div v-if="oshindResult?.success && oshindResult.has_update" class="update-panel">
           <div class="update-title">
             {{ t('component_update_found', '组件有新版本') }}:
-            <span class="update-versions">{{ oshindResult.latest_version }}</span>
+            <span class="update-versions">{{ oshindResult.current_version || t('settings_component_not_installed', '未安装') }} → {{ oshindResult.latest_version }}</span>
           </div>
           <pre v-if="oshindResult.changelog" class="update-changelog">{{ oshindResult.changelog }}</pre>
+        </div>
+        <div v-else-if="oshindResult?.success" class="update-panel update-ok">
+          {{ oshindResult.message || t('update_latest', '当前已是最新版本') }}
         </div>
         <div v-else-if="oshindResult && !oshindResult.success" class="update-panel update-ok">
           {{ oshindResult.message }}

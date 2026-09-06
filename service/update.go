@@ -13,7 +13,7 @@ import (
 // ==================== 版本与检查更新（GitHub Releases） ====================
 
 // AppVersion 应用版本号，发布时更新（前端顶栏与设置页均显示此值）
-const AppVersion = "v0.1.0"
+const AppVersion = "0.1.0"
 
 // updateCheckRepo GitHub 仓库坐标，Releases 页面为更新源
 const updateCheckRepo = "OshinTeam/KinhDesktop"
@@ -40,11 +40,6 @@ type UpdateCheckResult struct {
 // GetAppVersion 返回当前版本号
 func (a *App) GetAppVersion() string {
 	return AppVersion
-}
-
-// normalizeVersion 统一版本号格式便于比较（去 v 前缀，转小写）
-func normalizeVersion(ver string) string {
-	return strings.ToLower(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(ver), "v")))
 }
 
 // compareVersion 比较点分版本号：latest > current 返回 1，相等 0，小于 -1
@@ -120,7 +115,8 @@ func (a *App) CheckUpdate() UpdateCheckResult {
 	result.LatestVer = release.TagName
 	result.Changelog = release.Body
 	result.PageURL = release.HTMLURL
-	result.HasUpdate = compareVersion(normalizeVersion(release.TagName), normalizeVersion(AppVersion)) > 0
+	result.HasUpdate = strings.Compare(release.TagName, "v"+AppVersion) > 0
+	global.Log.Debugf("检查 KinhDesktop 更新: 已安装=%v, 最新=%s, 当前=%s, 可更新=%v", result.HasUpdate, release.TagName, "v"+AppVersion, result.HasUpdate)
 	if result.HasUpdate {
 		result.Message = "发现新版本 " + release.TagName
 	} else {

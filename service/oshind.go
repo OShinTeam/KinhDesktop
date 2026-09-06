@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -208,7 +209,8 @@ func (a *App) CheckOShinDUpdate() OShinDUpdateResult {
 		result.CurrentVer = version
 		// GitHub releases/latest 返回的即最新 tag，直接一致性对比：
 		// 与当前版本不一致即视为可更新，不做点分比较（规避预发布/非标版本号边界）
-		result.HasUpdate = normalizeVersion(release.TagName) != normalizeVersion(version)
+		result.HasUpdate = strings.Compare(release.TagName, "v"+version) > 0
+		global.Log.Debugf("检查 OShinD 更新: 已安装=%v, 最新=%s, 当前=%s, 可更新=%v", installed, release.TagName, "v"+version, result.HasUpdate)
 		if result.HasUpdate {
 			result.Message = "发现新版本 " + release.TagName
 		} else {
