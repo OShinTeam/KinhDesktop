@@ -15,6 +15,7 @@ const { t, loadTextMap } = useI18n()
 const form = reactive({
   language: 'zh-CN',
   close_action: 'exit',
+  download_proxy: '',
   download_user_agent: '',
   download_threads: 4,
   download_dir: '',
@@ -34,6 +35,7 @@ function serializeForm() {
   return JSON.stringify([
     form.language,
     form.close_action,
+    form.download_proxy,
     form.download_user_agent,
     form.download_threads,
     form.download_dir,
@@ -260,6 +262,36 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
             <el-option v-for="opt in logLevelOptions" :key="opt.value" :label="opt.label" :value="opt.value" />
           </el-select>
         </div>
+
+        <!-- 下载代理：留空不启用，作用于 OShinD 组件下载与直链请求 -->
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">{{ t('settings_proxy', '下载代理') }}</div>
+            <div class="setting-desc">{{ t('settings_proxy_desc', '') }}</div>
+          </div>
+          <div class="setting-inline">
+            <el-input
+              v-model="form.download_proxy"
+              :placeholder="t('settings_proxy_placeholder', 'http://127.0.0.1:7890 留空不启用')"
+              clearable
+            />
+          </div>
+        </div>
+
+        <!-- 远程解析：加速链接服务地址，留空仅本地解析，填写后文件列表可用远程解析 -->
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">{{ t('settings_remote_resolve', '远程解析') }}</div>
+            <div class="setting-desc">{{ t('settings_acclink', '加速链接服务地址') }}</div>
+          </div>
+          <div class="setting-inline">
+            <el-input
+              v-model="form.download_acc_link"
+              :placeholder="t('settings_acclink_placeholder', 'https:// 留空禁用')"
+              clearable
+            />
+          </div>
+        </div>
       </div>
 
       <!-- 下载设置 -->
@@ -307,21 +339,6 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
             :step="1"
             step-strictly
           />
-        </div>
-
-        <!-- 远程解析：加速链接服务地址，留空仅本地解析，填写后文件列表可用远程解析 -->
-        <div class="setting-row">
-          <div class="setting-info">
-            <div class="setting-label">{{ t('settings_remote_resolve', '远程解析') }}</div>
-            <div class="setting-desc">{{ t('settings_acclink', '加速链接服务地址') }}</div>
-          </div>
-          <div class="setting-inline">
-            <el-input
-              v-model="form.download_acc_link"
-              :placeholder="t('settings_acclink_placeholder', '留空禁用')"
-              clearable
-            />
-          </div>
         </div>
 
         <!-- 下载组件（OShinD）：版本显示 + 检查更新 -->

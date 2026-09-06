@@ -1,11 +1,12 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { GetBaiduFileList, GetBaiduQuota, BaiduLogout, GetBaiduDownloadLink, GetBaiduDownloadLinkRemote, GetSettings } from '../../wailsjs/go/service/App'
-import { BrowserOpenURL, ClipboardSetText } from '../../wailsjs/runtime/runtime'
+import { GetBaiduFileList, GetBaiduQuota, BaiduLogout, GetBaiduDownloadLink, GetBaiduDownloadLinkRemote, GetSettings, GetOShinDVersion, SubmitDownload } from '../../wailsjs/go/service/App'
+import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
 import FileList from '../components/FileList.vue'
 import Breadcrumb from '../components/Breadcrumb.vue'
 import SettingsView from './SettingsView.vue'
+import DownloadsView from './DownloadsView.vue'
 import { formatBytes } from '../utils/format'
 import { useI18n } from '../composables/useI18n'
 import {
@@ -33,8 +34,22 @@ async function loadRemoteEnabled() {
   try {
     const settings = await GetSettings()
     remoteEnabled.value = !!settings?.download_acc_link
+    resolveUA.value = settings?.download_user_agent || ''
   } catch {
     remoteEnabled.value = false
+    resolveUA.value = ''
+  }
+}
+
+// OShinD 组件是否可用（决定弹窗动作与下载管理页形态）
+const oshindInstalled = ref(false)
+
+async function loadOshindInstalled() {
+  try {
+    const info = await GetOShinDVersion()
+    oshindInstalled.value = !!info?.installed
+  } catch {
+    oshindInstalled.value = false
   }
 }
 
@@ -71,9 +86,10 @@ async function handleMenuSelect(key) {
       return // 留在本页，不切换
     }
   }
-  // 离开设置页时刷新远程解析可用状态（设置中加速链接可能已被修改/保存）
+  // 离开设置页时刷新远程解析/组件状态（设置中加速链接、组件可能已被修改/安装）
   if (activePage.value === 'settings') {
     loadRemoteEnabled()
+    loadOshindInstalled()
   }
   activePage.value = key
 }
@@ -136,34 +152,68 @@ async function handleFileAction(payload) {
       return
     }
     ElMessage.success(t('download_link_success', '已获取下载直链'))
-    downloadLink.value = { name: result.filename || item.server_filename || item.filename, url: result.dlink }
+    downloadLink.value = {
+      name: result.filename || item.server_filename || item.filename,
+      url: result.dlink,
+      ua: resolveUA.value,
+    }
   } catch (err) {
     ElMessage.error(t('download_link_failed', '获取下载地址失败') + ': ' + String(err))
   }
 }
 
-// 下载直链弹窗：解析成功后展示，提供复制链接 / 浏览器下载两个动作
+// 下载 UA：与设置中的默认 UA 一致（弹窗展示/复制用）
+const resolveUA = ref('')
+
+// 下载直链弹窗：组件不存在时展示链接与 UA（复制链接/复制UA）；
+// 组件存在时提供「添加到下载管理」推送任务
 const downloadLink = ref(null)
 
 function closeDownloadLink() {
   downloadLink.value = null
 }
 
-async function copyDownloadLink() {
-  if (!downloadLink.value?.url) return
-  const ok = await ClipboardSetText(downloadLink.value.url)
+async function copyText(text, successMsg) {
+  const ok = await ClipboardSetText(text)
   if (ok) {
-    ElMessage.success(t('download_link_copied', '下载直链已复制到剪贴板'))
-    closeDownloadLink()
+    ElMessage.success(successMsg)
   } else {
-    ElMessage.error(t('download_link_failed', '获取下载地址失败'))
+    ElMessage.error(t('download_copy_failed', '复制失败'))
+  }
+  return ok
+}
+
+async function copyDownloadLink() {
+  if (downloadLink.value?.url && await copyText(downloadLink.value.url, t('download_link_copied', '下载直链已复制到剪贴板'))) {
+    closeDownloadLink()
   }
 }
 
-function openDownloadInBrowser() {
+async function copyDownloadUA() {
+  if (downloadLink.value?.ua && await copyText(downloadLink.value.ua, t('download_ua_copied', 'User-Agent 已复制到剪贴板'))) {
+    closeDownloadLink()
+  }
+}
+
+// 组件存在时推送任务到下载管理
+const submittingTask = ref(false)
+
+async function pushToDownloadManager() {
   if (!downloadLink.value?.url) return
-  BrowserOpenURL(downloadLink.value.url)
-  closeDownloadLink()
+  submittingTask.value = true
+  try {
+    const result = await SubmitDownload(downloadLink.value.url, downloadLink.value.name, 0)
+    if (!result?.success) {
+      ElMessage.error(result?.message || t('download_submit_failed', '添加下载任务失败'))
+      return
+    }
+    ElMessage.success(t('download_submit_success', '已添加到下载管理'))
+    closeDownloadLink()
+  } catch (err) {
+    ElMessage.error(t('download_submit_failed', '添加下载任务失败') + ': ' + String(err))
+  } finally {
+    submittingTask.value = false
+  }
 }
 
 // 退出登录：弹窗确认后调用后端清除凭证（含本地密钥与保存的登录信息）
@@ -198,6 +248,7 @@ onMounted(() => {
   loadFiles('/')
   loadQuota()
   loadRemoteEnabled()
+  loadOshindInstalled()
 })
 
 const menuItems = [
@@ -300,16 +351,14 @@ function vipInfo(vipType) {
           />
         </div>
       </section>
-      <div v-else-if="activePage === 'downloads'" class="page-placeholder">
-        <el-empty :description="t('page_downloads', '下载管理')" />
-      </div>
+      <DownloadsView v-else-if="activePage === 'downloads'" />
       <SettingsView
         v-else-if="activePage === 'settings'"
         ref="settingsRef"
       />
     </main>
 
-    <!-- 下载直链弹窗：解析成功后展示文件名与直链，提供复制 / 浏览器下载 -->
+    <!-- 下载直链弹窗：展示文件名/直链/UA；组件存在时可推送下载管理，否则复制链接与 UA -->
     <el-dialog
       :model-value="!!downloadLink"
       :title="t('download_link_success', '已获取下载直链')"
@@ -320,12 +369,22 @@ function vipInfo(vipType) {
       <div v-if="downloadLink" class="dl-link-body">
         <div class="dl-link-name" :title="downloadLink.name">{{ downloadLink.name }}</div>
         <div class="dl-link-url">{{ downloadLink.url }}</div>
+        <div class="dl-link-ua">
+          <span class="dl-link-ua-label">UA</span>
+          <span class="dl-link-ua-text">{{ downloadLink.ua || '-' }}</span>
+        </div>
       </div>
       <template #footer>
         <el-button @click="closeDownloadLink">{{ t('logout_confirm_cancel', '取消') }}</el-button>
         <el-button @click="copyDownloadLink">{{ t('download_copy_link', '复制链接') }}</el-button>
-        <el-button type="primary" @click="openDownloadInBrowser">
-          {{ t('download_open_page', '浏览器下载') }}
+        <el-button @click="copyDownloadUA">{{ t('download_copy_ua', '复制UA') }}</el-button>
+        <el-button
+          v-if="oshindInstalled"
+          type="primary"
+          :loading="submittingTask"
+          @click="pushToDownloadManager"
+        >
+          {{ t('download_push_task', '添加到下载管理') }}
         </el-button>
       </template>
     </el-dialog>
@@ -497,6 +556,25 @@ function vipInfo(vipType) {
   word-break: break-all;
   max-height: 120px;
   overflow-y: auto;
+  user-select: text;
+}
+
+.dl-link-ua {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  color: #909399;
+}
+
+.dl-link-ua-label {
+  flex-shrink: 0;
+  font-weight: 600;
+}
+
+.dl-link-ua-text {
+  min-width: 0;
+  word-break: break-all;
   user-select: text;
 }
 </style>
