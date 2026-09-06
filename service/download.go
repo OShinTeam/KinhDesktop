@@ -153,6 +153,20 @@ func (a *App) CancelDownloadTask(taskID string) bool {
 	return ret == 1
 }
 
+// PauseDownloadTask 暂停任务（组件保存断点状态，可恢复）
+func (a *App) PauseDownloadTask(taskID string) bool {
+	installed, _, _ := loadOShinD()
+	if !installed || oshindProcPause == nil {
+		return false
+	}
+	_, _, err := oshindProcPause.Call(strPtr(taskID))
+	if err != nil && isRealErr(err) {
+		global.Log.Warnf("OShinD 暂停任务失败: %v", err)
+		return false
+	}
+	return true
+}
+
 // DownloadTaskOptions 自定义下载任务选项（前端新建任务弹窗提交）
 type DownloadTaskOptions struct {
 	URL           string            `json:"url"`

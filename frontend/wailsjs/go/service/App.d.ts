@@ -9,6 +9,8 @@ export function BaiduQRLogin(arg1:string,arg2:boolean):Promise<service.BaiduLogi
 
 export function CancelDownloadTask(arg1:string):Promise<boolean>;
 
+export function PauseDownloadTask(arg1:string):Promise<boolean>;
+
 export function CheckOShinDUpdate():Promise<service.OShinDUpdateResult>;
 
 export function CheckUpdate():Promise<service.UpdateCheckResult>;

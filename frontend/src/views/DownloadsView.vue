@@ -1,11 +1,11 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { GetDownloadTasks, CancelDownloadTask, GetSettings, GetOShinDVersion, SubmitDownloadWithOptions } from '../../wailsjs/go/service/App'
+import { GetDownloadTasks, CancelDownloadTask, PauseDownloadTask, GetSettings, GetOShinDVersion, SubmitDownloadWithOptions } from '../../wailsjs/go/service/App'
 import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 import { formatBytes } from '../utils/format'
 import { useI18n } from '../composables/useI18n'
-import { Plus, CircleClose } from '@element-plus/icons-vue'
+import { Plus, CircleClose, VideoPause } from '@element-plus/icons-vue'
 
 const { t } = useI18n()
 
@@ -111,6 +111,20 @@ async function handleCancel(task) {
     }
   } catch (err) {
     ElMessage.error(t('task_cancel_failed', '取消任务失败') + ': ' + String(err))
+  }
+}
+
+async function handlePause(task) {
+  try {
+    const ok = await PauseDownloadTask(task.task_id)
+    if (ok) {
+      ElMessage.success(t('task_pause_success', '任务已暂停'))
+      refreshTasks()
+    } else {
+      ElMessage.error(t('task_pause_failed', '暂停任务失败'))
+    }
+  } catch (err) {
+    ElMessage.error(t('task_pause_failed', '暂停任务失败') + ': ' + String(err))
   }
 }
 
@@ -275,6 +289,13 @@ onUnmounted(stopPolling)
             />
           </div>
           <div class="task-ops">
+            <el-button
+              v-if="runningStatuses.includes(task.status)"
+              :icon="VideoPause"
+              circle
+              :title="t('task_pause', '暂停')"
+              @click="handlePause(task)"
+            />
             <el-button
               v-if="runningStatuses.includes(task.status)"
               :icon="CircleClose"

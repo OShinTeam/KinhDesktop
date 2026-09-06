@@ -14,6 +14,10 @@ export function CancelDownloadTask(arg1) {
   return window['go']['service']['App']['CancelDownloadTask'](arg1);
 }
 
+export function PauseDownloadTask(arg1) {
+  return window['go']['service']['App']['PauseDownloadTask'](arg1);
+}
+
 export function CheckOShinDUpdate() {
   return window['go']['service']['App']['CheckOShinDUpdate']();
 }

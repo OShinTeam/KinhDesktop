@@ -44,6 +44,7 @@ var (
 	oshindProcStat   *syscall.Proc // OShinD_GetTaskStatus 过程句柄
 	oshindProcFree   *syscall.Proc // OShinD_FreeString 过程句柄
 	oshindProcCancel *syscall.Proc // OShinD_CancelTask 过程句柄
+	oshindProcPause  *syscall.Proc // OShinD_PauseTask 过程句柄
 )
 
 // oshindLibPath 组件动态库完整路径
@@ -81,6 +82,7 @@ func loadOShinD() (loaded bool, version string, loadErr error) {
 		"OShinD_GetTaskStatus": &oshindProcStat,
 		"OShinD_FreeString":    &oshindProcFree,
 		"OShinD_CancelTask":    &oshindProcCancel,
+		"OShinD_PauseTask":     &oshindProcPause,
 	}
 	for name, slot := range required {
 		proc, err := oshindLib.FindProc(name)
@@ -131,7 +133,10 @@ func cStringToGo(ptr uintptr) string {
 		length++
 		view = unsafe.Slice(p, length+1) // 逐步扩展只读视图
 	}
-	s := unsafe.String(p, length)
+	// string(...) 拷贝语义：必须在 FreeString 前复制内容。
+	// 不可用 unsafe.String（零拷贝共享 C 内存），否则释放后字符串指向已回收内存，
+	// 存入台账的 taskID 会被组件后续分配改写，导致状态查询/取消全部失效。
+	s := string(unsafe.Slice(p, length))
 	if oshindProcFree != nil {
 		_, _, _ = oshindProcFree.Call(ptr)
 	}
