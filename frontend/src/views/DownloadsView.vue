@@ -343,9 +343,11 @@ onUnmounted(stopPolling)
             <!-- 组件透出的失败原因（OShinD >= 0.0.4 状态接口 error 字段） -->
             <div v-if="task.error" class="task-error" :title="task.error">{{ task.error }}</div>
           </div>
+          <!-- 操作行：按钮按状态固定占位，进度条不因按钮增减被挤压 -->
           <div class="task-ops">
             <el-button
               v-if="runningStatuses.includes(task.status)"
+              size="small"
               :icon="VideoPause"
               circle
               :title="t('task_pause', '暂停')"
@@ -353,6 +355,7 @@ onUnmounted(stopPolling)
             />
             <el-button
               v-if="resumableStatuses.includes(task.status)"
+              size="small"
               :icon="VideoPlay"
               circle
               :title="t('task_resume', '继续')"
@@ -360,12 +363,14 @@ onUnmounted(stopPolling)
             />
             <el-button
               v-if="runningStatuses.includes(task.status)"
+              size="small"
               :icon="CircleClose"
               circle
               :title="t('task_cancel', '取消')"
               @click="handleCancel(task)"
             />
             <el-button
+              size="small"
               :icon="Delete"
               circle
               type="danger"
@@ -566,10 +571,10 @@ onUnmounted(stopPolling)
   background: #fff;
   border: 1px solid #e4e7ed;
   border-radius: 8px;
-  padding: 14px 16px;
+  padding: 14px 16px 10px;
   display: flex;
-  align-items: center;
-  gap: 16px;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .task-main {
@@ -618,9 +623,11 @@ onUnmounted(stopPolling)
 }
 
 .task-ops {
-  flex-shrink: 0;
   display: flex;
+  align-items: center;
   gap: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #f0f2f5;
 }
 
 /* 新建任务表单 */
