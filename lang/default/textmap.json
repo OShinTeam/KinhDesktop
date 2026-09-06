@@ -137,6 +137,8 @@
   "task_resume": "继续",
   "task_resume_success": "任务已恢复",
   "task_resume_failed": "恢复任务失败",
+  "task_connections": "线程",
+  "download_resolving": "正在获取下载地址",
   "task_remove": "移除任务",
   "task_remove_confirm": "确定要移除该任务吗？无论是否删除文件，任务都会先被取消，后台不会继续下载。",
   "task_remove_confirm_btn": "移除",

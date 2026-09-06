@@ -10,7 +10,9 @@ const { t } = useI18n()
 const props = defineProps({
   files: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
-  remoteEnabled: { type: Boolean, default: false } // 远程解析是否可用（已配置加速链接）
+  remoteEnabled: { type: Boolean, default: false }, // 远程解析是否可用（已配置加速链接）
+  // 解析状态：全局同时仅允许一个解析请求（active 时其余按钮禁用，目标按钮转圈）
+  resolving: { type: Object, default: () => ({ active: false, fs_id: 0, type: '', name: '' }) }
 })
 
 const emit = defineEmits(['navigate', 'action'])
@@ -69,10 +71,21 @@ function openItem(item) {
 function triggerAction(item, type) {
   emit('action', { item, type })
 }
+
+// isResolving 该文件该类型的按钮是否正在解析中（转圈的是它）
+function isResolving(item, type) {
+  return props.resolving.active
+    && props.resolving.fs_id === item.fs_id
+    && props.resolving.type === type
+}
 </script>
 
 <template>
   <div class="file-list" v-loading="loading">
+    <!-- 解析中提示条：显式反馈当前正在获取哪个文件的下载地址 -->
+    <div v-if="resolving.active" class="resolving-tip">
+      {{ t('download_resolving', '正在获取下载地址') }}: {{ resolving.name }}
+    </div>
     <el-empty v-if="!loading && files.length === 0" :description="t('file_list_empty', '暂无文件')" />
 
     <ul v-else class="file-rows">
@@ -99,6 +112,8 @@ function triggerAction(item, type) {
               circle
               :icon="Download"
               :title="t('download_get_link', '获取下载地址')"
+              :loading="isResolving(item, 'download')"
+              :disabled="resolving.active && !isResolving(item, 'download')"
               @click="triggerAction(item, 'download')"
             />
             <el-button
@@ -107,6 +122,8 @@ function triggerAction(item, type) {
               circle
               :icon="Connection"
               :title="t('download_remote_resolve', '远程解析')"
+              :loading="isResolving(item, 'download_remote')"
+              :disabled="resolving.active && !isResolving(item, 'download_remote')"
               @click="triggerAction(item, 'download_remote')"
             />
           </template>
@@ -124,6 +141,14 @@ function triggerAction(item, type) {
   min-height: 0;
   background: #fff;
   overflow-y: auto;
+}
+
+.resolving-tip {
+  padding: 6px 16px;
+  font-size: 12px;
+  color: #409eff;
+  background: #ecf5ff;
+  border-bottom: 1px solid #e1eefb;
 }
 
 .file-rows {

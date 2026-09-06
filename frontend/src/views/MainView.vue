@@ -138,12 +138,23 @@ async function loadFiles(dir = '/') {
   }
 }
 
+// 解析状态：全局同时仅允许一个解析请求。
+// FileList 据此禁用其他按钮并转圈当前按钮；此处兜底拦截，双保险防重入
+const resolving = ref({ active: false, fs_id: 0, type: '', name: '' })
+
 // 文件操作：download 本地解析 / download_remote 远程解析（需在设置中配置加速链接）
 async function handleFileAction(payload) {
   if (payload?.type !== 'download' && payload?.type !== 'download_remote') return
   const item = payload.item
   if (!item?.fs_id) return
+  if (resolving.value.active) return
 
+  resolving.value = {
+    active: true,
+    fs_id: item.fs_id,
+    type: payload.type,
+    name: item.server_filename || item.filename || '',
+  }
   const resolve = payload.type === 'download_remote' ? GetBaiduDownloadLinkRemote : GetBaiduDownloadLink
   try {
     const result = await resolve(item.fs_id)
@@ -159,6 +170,8 @@ async function handleFileAction(payload) {
     }
   } catch (err) {
     ElMessage.error(t('download_link_failed', '获取下载地址失败') + ': ' + String(err))
+  } finally {
+    resolving.value = { active: false, fs_id: 0, type: '', name: '' }
   }
 }
 
@@ -347,6 +360,7 @@ function vipInfo(vipType) {
             :files="files"
             :loading="loading"
             :remote-enabled="remoteEnabled"
+            :resolving="resolving"
             @navigate="loadFiles"
             @action="handleFileAction"
           />

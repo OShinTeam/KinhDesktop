@@ -137,6 +137,8 @@
   "task_resume": "再開",
   "task_resume_success": "タスクを再開しました",
   "task_resume_failed": "タスクの再開に失敗しました",
+  "task_connections": "スレッド",
+  "download_resolving": "ダウンロードアドレスを取得中",
   "task_remove": "タスクを削除",
   "task_remove_confirm": "このタスクを削除しますか？ファイルの削除の有無にかかわらず、タスクは先にキャンセルされ、バックグラウンドでダウンロードが続くことはありません。",
   "task_remove_confirm_btn": "削除",

@@ -331,7 +331,8 @@ onUnmounted(stopPolling)
             <div class="task-meta">
               <el-tag :type="statusType(task.status)" size="small">{{ statusLabel(task.status) }}</el-tag>
               <span class="task-size">{{ sizeOf(task) }}</span>
-              <span v-if="speedOf(task)" class="task-speed">{{ speedOf(task) }}</span>
+              <span v-if="task.active_threads > 0" class="task-connections">{{ task.active_threads }} {{ t('task_connections', '线程') }}</span>
+              <span class="task-speed">{{ speedOf(task) }}</span>
             </div>
             <el-progress
               :percentage="progressOf(task)"
@@ -595,7 +596,24 @@ onUnmounted(stopPolling)
   color: #909399;
 }
 
+/* 数值区固定占位：速度/大小高频变动时不推挤相邻元素，避免整行重排抖动 */
+.task-size,
+.task-connections,
 .task-speed {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.task-size {
+  min-width: 10em;
+}
+
+.task-connections {
+  min-width: 4.5em;
+}
+
+.task-speed {
+  min-width: 5.5em;
   color: #409eff;
 }
 

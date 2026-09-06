@@ -226,7 +226,8 @@ func (a *App) GetDownloadTasks() []map[string]interface{} {
 		if statusJSON := oshindTaskStatus(entry.TaskID); statusJSON != "" {
 			var status map[string]interface{}
 			if json.Unmarshal([]byte(statusJSON), &status) == nil {
-				for _, k := range []string{"status", "progress", "speed", "downloaded", "total", "error", "file_name"} {
+				// active_threads 为组件实时活跃线程数（非提交上限）
+				for _, k := range []string{"status", "progress", "speed", "downloaded", "total", "error", "file_name", "active_threads"} {
 					if v, ok := status[k]; ok {
 						item[k] = v
 					}

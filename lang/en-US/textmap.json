@@ -137,6 +137,8 @@
   "task_resume": "Resume",
   "task_resume_success": "Task resumed",
   "task_resume_failed": "Failed to resume task",
+  "task_connections": "threads",
+  "download_resolving": "Resolving download link",
   "task_remove": "Remove Task",
   "task_remove_confirm": "Remove this task? The task will be cancelled first regardless of your choice, so it will not keep downloading in the background.",
   "task_remove_confirm_btn": "Remove",

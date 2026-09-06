@@ -137,6 +137,8 @@
   "task_resume": "계속",
   "task_resume_success": "작업이 재개되었습니다",
   "task_resume_failed": "작업 재개 실패",
+  "task_connections": "스레드",
+  "download_resolving": "다운로드 주소 가져오는 중",
   "task_remove": "작업 제거",
   "task_remove_confirm": "이 작업을 제거하시겠습니까? 파일 삭제 여부와 관계없이 작업이 먼저 취소되어 백그라운드에서 다운로드가 계속되지 않습니다.",
   "task_remove_confirm_btn": "제거",
