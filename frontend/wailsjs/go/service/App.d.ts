@@ -9,8 +9,6 @@ export function BaiduQRLogin(arg1:string,arg2:boolean):Promise<service.BaiduLogi
 
 export function CancelDownloadTask(arg1:string):Promise<boolean>;
 
-export function PauseDownloadTask(arg1:string):Promise<boolean>;
-
 export function CheckOShinDUpdate():Promise<service.OShinDUpdateResult>;
 
 export function CheckUpdate():Promise<service.UpdateCheckResult>;
@@ -58,6 +56,8 @@ export function Notify(arg1:string,arg2:string):Promise<void>;
 export function OpenFileSelect():Promise<string>;
 
 export function OpenFolderSelect():Promise<string>;
+
+export function PauseDownloadTask(arg1:string):Promise<boolean>;
 
 export function PollBaiduQR(arg1:string):Promise<service.BaiduPollResult>;
 

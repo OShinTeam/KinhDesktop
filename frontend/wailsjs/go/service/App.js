@@ -14,10 +14,6 @@ export function CancelDownloadTask(arg1) {
   return window['go']['service']['App']['CancelDownloadTask'](arg1);
 }
 
-export function PauseDownloadTask(arg1) {
-  return window['go']['service']['App']['PauseDownloadTask'](arg1);
-}
-
 export function CheckOShinDUpdate() {
   return window['go']['service']['App']['CheckOShinDUpdate']();
 }
@@ -112,6 +108,10 @@ export function OpenFileSelect() {
 
 export function OpenFolderSelect() {
   return window['go']['service']['App']['OpenFolderSelect']();
+}
+
+export function PauseDownloadTask(arg1) {
+  return window['go']['service']['App']['PauseDownloadTask'](arg1);
 }
 
 export function PollBaiduQR(arg1) {
