@@ -222,35 +222,9 @@ func (a *App) CheckOShinDUpdate() OShinDUpdateResult {
 	return result
 }
 
-// UpdateOShinD 组件一键更新/安装
-//
-// 已安装（组件具备下载能力）：从最新 release 找到对应平台动态库 asset，
-// 通过 OShinD_Download 下载到临时位置，校验后替换 data/oshind.dll（组件自更新）。
-// 未安装：查询 release 返回直链与 UA 信息，由前端引导用户手动下载放置
-// （无下载能力时降级方案，不做自动化安装）。
-//
-// TODO(组件更新落地时)：asset 命名需与 OShinD 发布约定对齐（如 oshind-windows-amd64.dll）；
-// 替换前需确保组件无进行中任务（遍历任务状态或提示用户），Windows 下运行中的 DLL 无法覆盖。
-func (a *App) UpdateOShinD() OShinDUpdateResult {
-	installed, _, _ := loadOShinD()
-	if !installed {
-		// 降级：返回最新 release 直链信息，由前端引导手动安装
-		result := a.CheckOShinDUpdate()
-		if result.Success && result.PageURL != "" {
-			result.Message = "组件未安装，请前往仓库手动下载 " + oshindLibName + " 放入 data 目录"
-		}
-		return result
-	}
-
-	// 组件存在：下载最新动态库替换自身（TODO 待 OShinD 发布约定确认后实现）
-	result := a.CheckOShinDUpdate()
-	if result.Success && !result.HasUpdate {
-		return result
-	}
-	result.Message = "组件更新流程待实现（需确认 OShinD 发布 asset 命名约定）"
-	global.Log.Warn(result.Message)
-	return result
-}
+// UpdateOShinD 已移除：组件自更新无闭环价值——未安装时无下载通道，
+// 已安装时下载产物无法落位为运行中的 oshind.dll 且不做自动替换（兼容性风险）。
+// 更新路径统一为：CheckOShinDUpdate 提示新版本 → 跳 Releases 页 → 浏览器手动下载替换。
 
 // fetchLatestRelease 查询仓库最新 release（update.go 与 oshind.go 共用）
 func fetchLatestRelease(repo string) (*githubRelease, error) {

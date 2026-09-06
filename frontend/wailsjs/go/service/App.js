@@ -158,10 +158,6 @@ export function SubmitDownloadWithOptions(arg1) {
   return window['go']['service']['App']['SubmitDownloadWithOptions'](arg1);
 }
 
-export function UpdateOShinD() {
-  return window['go']['service']['App']['UpdateOShinD']();
-}
-
 export function WindowClose() {
   return window['go']['service']['App']['WindowClose']();
 }

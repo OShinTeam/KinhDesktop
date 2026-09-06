@@ -81,8 +81,6 @@ export function SubmitDownload(arg1:string,arg2:string,arg3:number):Promise<serv
 
 export function SubmitDownloadWithOptions(arg1:service.DownloadTaskOptions):Promise<service.DownloadSubmitResult>;
 
-export function UpdateOShinD():Promise<service.OShinDUpdateResult>;
-
 export function WindowClose():Promise<void>;
 
 export function WindowMinimise():Promise<void>;
