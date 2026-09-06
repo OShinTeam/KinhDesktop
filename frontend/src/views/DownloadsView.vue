@@ -312,7 +312,7 @@ onUnmounted(stopPolling)
               <el-input v-model="newTask.user_agent" :placeholder="t('task_use_default_ua', '留空使用默认 UA')" clearable />
             </el-form-item>
             <el-form-item :label="t('settings_proxy', '下载代理')">
-              <el-input v-model="newTask.proxy" :placeholder="t('settings_proxy_placeholder', 'http://127.0.0.1:7890 留空不启用')" clearable />
+              <el-input v-model="newTask.proxy" :placeholder="t('settings_proxy_placeholder', '留空不启用')" clearable />
             </el-form-item>
             <el-form-item :label="t('task_custom_headers', '自定义请求头')">
               <el-input

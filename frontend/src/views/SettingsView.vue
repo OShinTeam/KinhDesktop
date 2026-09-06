@@ -320,7 +320,7 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
           <div class="setting-inline">
             <el-input
               v-model="form.download_proxy"
-              :placeholder="t('settings_proxy_placeholder', 'http://127.0.0.1:7890 留空不启用')"
+              :placeholder="t('settings_proxy_placeholder', '留空不启用')"
               clearable
             />
           </div>
@@ -335,7 +335,7 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
           <div class="setting-inline">
             <el-input
               v-model="form.download_acc_link"
-              :placeholder="t('settings_acclink_placeholder', 'https:// 留空禁用')"
+              :placeholder="t('settings_acclink_placeholder', '留空不启用')"
               clearable
             />
           </div>
