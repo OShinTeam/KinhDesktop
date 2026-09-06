@@ -85,10 +85,21 @@ function progressOf(task) {
   return Number.isFinite(p) ? Math.min(Math.round(p * 10) / 10, 100) : 0
 }
 
+// 速度显示平滑：轮询间隙（分片切换/瞬时 0 速）保留上一次有效速度，
+// 避免显示一卡一卡；仅在任务离开运行态（完成/暂停/失败）时才清空
+const lastSpeed = ref({}) // task_id -> '123 KB/s'
+
 function speedOf(task) {
   const s = Number(task.speed)
-  if (!Number.isFinite(s) || s <= 0) return ''
-  return formatBytes(s) + '/s'
+  const running = runningStatuses.includes(task.status)
+  if (Number.isFinite(s) && s > 0) {
+    lastSpeed.value[task.task_id] = formatBytes(s) + '/s'
+  }
+  if (!running) {
+    delete lastSpeed.value[task.task_id]
+    return ''
+  }
+  return lastSpeed.value[task.task_id] || ''
 }
 
 function sizeOf(task) {
@@ -331,8 +342,10 @@ onUnmounted(stopPolling)
             <div class="task-meta">
               <el-tag :type="statusType(task.status)" size="small">{{ statusLabel(task.status) }}</el-tag>
               <span class="task-size">{{ sizeOf(task) }}</span>
-              <span v-if="task.active_threads > 0" class="task-connections">{{ task.active_threads }} {{ t('task_connections', '线程') }}</span>
               <span class="task-speed">{{ speedOf(task) }}</span>
+              <span v-if="task.active_threads > 0" class="task-connections">{{ task.active_threads }} {{ t('task_connections', '线程') }}</span>
+              <!-- 失败原因：靠右嵌在 meta 行内，不单独占行顶高卡片 -->
+              <span v-if="task.error" class="task-error" :title="task.error">{{ task.error }}</span>
             </div>
             <el-progress
               :percentage="progressOf(task)"
@@ -340,8 +353,6 @@ onUnmounted(stopPolling)
               :stroke-width="6"
               :status="task.status === 'FAILED' ? 'exception' : task.status === 'COMPLETED' ? 'success' : undefined"
             />
-            <!-- 组件透出的失败原因（OShinD >= 0.0.4 状态接口 error 字段） -->
-            <div v-if="task.error" class="task-error" :title="task.error">{{ task.error }}</div>
           </div>
           <!-- 操作行：按钮按状态固定占位，进度条不因按钮增减被挤压 -->
           <div class="task-ops">
@@ -504,9 +515,12 @@ onUnmounted(stopPolling)
   color: #606266;
 }
 
-/* 组件侧失败原因：单行省略，悬停看全文 */
+/* 组件侧失败原因：嵌在 meta 行右侧，单行省略，悬停看全文 */
 .task-error {
-  margin-top: 4px;
+  margin-left: auto;
+  min-width: 0;
+  flex: 1;
+  text-align: right;
   font-size: 12px;
   color: #f56c6c;
   overflow: hidden;
