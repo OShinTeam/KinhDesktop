@@ -1,6 +1,6 @@
 <script setup>
 import {
-  Folder, Document, Picture, VideoPlay, Headset, Tickets, Box, Files, Download
+  Folder, Document, Picture, VideoPlay, Headset, Tickets, Box, Files, Download, Connection
 } from '@element-plus/icons-vue'
 import { formatBytes, formatTimestamp } from '../utils/format'
 import { useI18n } from '../composables/useI18n'
@@ -97,8 +97,15 @@ function triggerAction(item, type) {
               class="file-download-btn"
               circle
               :icon="Download"
-              title="下载"
+              :title="t('download_get_link', '获取下载地址')"
               @click="triggerAction(item, 'download')"
+            />
+            <el-button
+              class="file-download-btn"
+              circle
+              :icon="Connection"
+              :title="t('download_remote_resolve', '远程解析')"
+              @click="triggerAction(item, 'download_remote')"
             />
           </template>
           <span v-else class="file-ops-empty">-</span>
@@ -156,6 +163,11 @@ function triggerAction(item, type) {
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
+}
+
+.file-download-btn + .file-download-btn {
+  margin-left: 0; /* 覆盖 Element Plus 相邻按钮默认左边距，用 gap 控制间距 */
 }
 
 .file-name {

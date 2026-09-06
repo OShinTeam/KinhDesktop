@@ -35,6 +35,7 @@ type AppSettings struct {
 	DownloadUserAgent string `json:"download_user_agent"` // 默认 UA
 	DownloadThreads   int    `json:"download_threads"`    // 默认线程数
 	DownloadDir       string `json:"download_dir"`        // 默认下载目录
+	DownloadAccLink   string `json:"download_acc_link"`   // 远程解析加速链接（留空仅本地解析）
 	// 其他
 	LogLevel string `json:"log_level"` // 日志等级：debug/info/warn/error
 }
@@ -172,6 +173,7 @@ func (a *App) SaveSettings(settings AppSettings) string {
 	if strings.TrimSpace(settings.DownloadDir) == "" {
 		settings.DownloadDir = defaultDownloadDir()
 	}
+	settings.DownloadAccLink = strings.TrimSpace(settings.DownloadAccLink)
 	settings.LogLevel = normalizeLogLevel(settings.LogLevel)
 	if settings.CloseAction != CloseActionTray {
 		settings.CloseAction = CloseActionExit

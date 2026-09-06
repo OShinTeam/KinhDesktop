@@ -18,6 +18,7 @@ const form = reactive({
   download_user_agent: '',
   download_threads: 4,
   download_dir: '',
+  download_acc_link: '',
   log_level: 'info'
 })
 const loading = ref(false)
@@ -36,6 +37,7 @@ function serializeForm() {
     form.download_user_agent,
     form.download_threads,
     form.download_dir,
+    form.download_acc_link,
     form.log_level,
   ])
 }
@@ -305,6 +307,21 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
             :step="1"
             step-strictly
           />
+        </div>
+
+        <!-- 远程解析加速链接：留空仅本地解析，填写后文件列表可用远程解析 -->
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">{{ t('settings_acclink', '远程解析加速链接') }}</div>
+            <div class="setting-desc">{{ t('settings_acclink_desc', '填写后可在文件列表使用远程解析；留空仅本地解析') }}</div>
+          </div>
+          <div class="setting-inline">
+            <el-input
+              v-model="form.download_acc_link"
+              :placeholder="t('settings_acclink_placeholder', 'https://（加速服务地址，留空禁用）')"
+              clearable
+            />
+          </div>
         </div>
 
         <!-- 下载组件（OShinD）：版本显示 + 检查更新 -->

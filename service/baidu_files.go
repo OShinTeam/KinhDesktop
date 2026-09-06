@@ -35,10 +35,10 @@ type baiduFileListResponse struct {
 
 // BaiduQuotaInfo 网盘容量信息
 type BaiduQuotaInfo struct {
-	Success  bool   `json:"success"`
-	Total    int64  `json:"total"` // 总容量（字节）
-	Used     int64  `json:"used"`  // 已用容量（字节）
-	Message  string `json:"message,omitempty"`
+	Success bool   `json:"success"`
+	Total   int64  `json:"total"` // 总容量（字节）
+	Used    int64  `json:"used"`  // 已用容量（字节）
+	Message string `json:"message,omitempty"`
 }
 
 type baiduQuotaResponse struct {

@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { GetBaiduFileList, GetBaiduQuota, BaiduLogout } from '../../wailsjs/go/service/App'
+import { GetBaiduFileList, GetBaiduQuota, BaiduLogout, GetBaiduDownloadLink, GetBaiduDownloadLinkRemote } from '../../wailsjs/go/service/App'
+import { BrowserOpenURL, ClipboardSetText } from '../../wailsjs/runtime/runtime'
 import FileList from '../components/FileList.vue'
 import Breadcrumb from '../components/Breadcrumb.vue'
 import SettingsView from './SettingsView.vue'
@@ -105,9 +106,48 @@ async function loadFiles(dir = '/') {
   }
 }
 
-function handleFileAction(payload) {
-  // 预留文件操作入口，后续根据 payload.type 实现具体功能
-  void payload
+// 文件操作：download 本地解析 / download_remote 远程解析（需在设置中配置加速链接）
+async function handleFileAction(payload) {
+  if (payload?.type !== 'download' && payload?.type !== 'download_remote') return
+  const item = payload.item
+  if (!item?.fs_id) return
+
+  const resolve = payload.type === 'download_remote' ? GetBaiduDownloadLinkRemote : GetBaiduDownloadLink
+  try {
+    const result = await resolve(item.fs_id)
+    if (!result?.success) {
+      ElMessage.error(result?.message || t('download_link_failed', '获取下载地址失败'))
+      return
+    }
+    ElMessage.success(t('download_link_success', '已获取下载直链'))
+    downloadLink.value = { name: result.filename || item.server_filename || item.filename, url: result.dlink }
+  } catch (err) {
+    ElMessage.error(t('download_link_failed', '获取下载地址失败') + ': ' + String(err))
+  }
+}
+
+// 下载直链弹窗：解析成功后展示，提供复制链接 / 浏览器下载两个动作
+const downloadLink = ref(null)
+
+function closeDownloadLink() {
+  downloadLink.value = null
+}
+
+async function copyDownloadLink() {
+  if (!downloadLink.value?.url) return
+  const ok = await ClipboardSetText(downloadLink.value.url)
+  if (ok) {
+    ElMessage.success(t('download_link_copied', '下载直链已复制到剪贴板'))
+    closeDownloadLink()
+  } else {
+    ElMessage.error(t('download_link_failed', '获取下载地址失败'))
+  }
+}
+
+function openDownloadInBrowser() {
+  if (!downloadLink.value?.url) return
+  BrowserOpenURL(downloadLink.value.url)
+  closeDownloadLink()
 }
 
 // 退出登录：弹窗确认后调用后端清除凭证（含本地密钥与保存的登录信息）
@@ -250,6 +290,27 @@ function vipInfo(vipType) {
         ref="settingsRef"
       />
     </main>
+
+    <!-- 下载直链弹窗：解析成功后展示文件名与直链，提供复制 / 浏览器下载 -->
+    <el-dialog
+      :model-value="!!downloadLink"
+      :title="t('download_link_success', '已获取下载直链')"
+      width="560px"
+      :close-on-click-modal="false"
+      @close="closeDownloadLink"
+    >
+      <div v-if="downloadLink" class="dl-link-body">
+        <div class="dl-link-name" :title="downloadLink.name">{{ downloadLink.name }}</div>
+        <div class="dl-link-url">{{ downloadLink.url }}</div>
+      </div>
+      <template #footer>
+        <el-button @click="closeDownloadLink">{{ t('logout_confirm_cancel', '取消') }}</el-button>
+        <el-button @click="copyDownloadLink">{{ t('download_copy_link', '复制链接') }}</el-button>
+        <el-button type="primary" @click="openDownloadInBrowser">
+          {{ t('download_open_page', '浏览器下载') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -391,5 +452,33 @@ function vipInfo(vipType) {
   display: flex;
   justify-content: center;
   align-items: center;
+}
+
+/* 下载直链弹窗内容 */
+.dl-link-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dl-link-name {
+  font-size: 14px;
+  color: #303133;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dl-link-url {
+  padding: 8px 10px;
+  background: #f5f7fa;
+  border-radius: 4px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: #606266;
+  word-break: break-all;
+  max-height: 120px;
+  overflow-y: auto;
+  user-select: text;
 }
 </style>
