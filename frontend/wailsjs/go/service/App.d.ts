@@ -7,6 +7,8 @@ export function BaiduLogout():Promise<boolean>;
 
 export function BaiduQRLogin(arg1:string,arg2:boolean):Promise<service.BaiduLoginResult>;
 
+export function CancelDownloadTask(arg1:string):Promise<boolean>;
+
 export function CheckOShinDUpdate():Promise<service.OShinDUpdateResult>;
 
 export function CheckUpdate():Promise<service.UpdateCheckResult>;
@@ -26,6 +28,8 @@ export function GetBaiduQR():Promise<service.BaiduQRCode>;
 export function GetBaiduQuota():Promise<service.BaiduQuotaInfo>;
 
 export function GetCurrentLang():Promise<string>;
+
+export function GetDownloadTasks():Promise<Array<Record<string, any>>>;
 
 export function GetLangPack():Promise<global.LanguagePack>;
 
@@ -66,6 +70,12 @@ export function SaveSettings(arg1:service.AppSettings):Promise<string>;
 export function SetLanguage(arg1:string):Promise<boolean>;
 
 export function SetLogLevel(arg1:string):Promise<boolean>;
+
+export function SubmitDownload(arg1:string,arg2:string,arg3:number):Promise<service.DownloadSubmitResult>;
+
+export function SubmitDownloadWithOptions(arg1:service.DownloadTaskOptions):Promise<service.DownloadSubmitResult>;
+
+export function UpdateOShinD():Promise<service.OShinDUpdateResult>;
 
 export function WindowClose():Promise<void>;
 

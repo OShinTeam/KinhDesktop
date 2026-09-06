@@ -10,6 +10,10 @@ export function BaiduQRLogin(arg1, arg2) {
   return window['go']['service']['App']['BaiduQRLogin'](arg1, arg2);
 }
 
+export function CancelDownloadTask(arg1) {
+  return window['go']['service']['App']['CancelDownloadTask'](arg1);
+}
+
 export function CheckOShinDUpdate() {
   return window['go']['service']['App']['CheckOShinDUpdate']();
 }
@@ -48,6 +52,10 @@ export function GetBaiduQuota() {
 
 export function GetCurrentLang() {
   return window['go']['service']['App']['GetCurrentLang']();
+}
+
+export function GetDownloadTasks() {
+  return window['go']['service']['App']['GetDownloadTasks']();
 }
 
 export function GetLangPack() {
@@ -128,6 +136,18 @@ export function SetLanguage(arg1) {
 
 export function SetLogLevel(arg1) {
   return window['go']['service']['App']['SetLogLevel'](arg1);
+}
+
+export function SubmitDownload(arg1, arg2, arg3) {
+  return window['go']['service']['App']['SubmitDownload'](arg1, arg2, arg3);
+}
+
+export function SubmitDownloadWithOptions(arg1) {
+  return window['go']['service']['App']['SubmitDownloadWithOptions'](arg1);
+}
+
+export function UpdateOShinD() {
+  return window['go']['service']['App']['UpdateOShinD']();
 }
 
 export function WindowClose() {

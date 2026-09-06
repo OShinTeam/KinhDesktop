@@ -29,8 +29,9 @@ const (
 // AppSettings 应用设置结构，JSON 字段即落盘字段
 type AppSettings struct {
 	// 程序设置
-	Language    string `json:"language"`     // 语言代码，如 zh-CN
-	CloseAction string `json:"close_action"` // 点击关闭后的操作：exit / tray（预留）
+	Language      string `json:"language"`       // 语言代码，如 zh-CN
+	CloseAction   string `json:"close_action"`   // 点击关闭后的操作：exit / tray（预留）
+	DownloadProxy string `json:"download_proxy"` // 下载代理（留空不启用），作用于 OShinD 组件下载与直链请求
 	// 下载设置
 	DownloadUserAgent string `json:"download_user_agent"` // 默认 UA
 	DownloadThreads   int    `json:"download_threads"`    // 默认线程数
@@ -174,6 +175,7 @@ func (a *App) SaveSettings(settings AppSettings) string {
 		settings.DownloadDir = defaultDownloadDir()
 	}
 	settings.DownloadAccLink = strings.TrimSpace(settings.DownloadAccLink)
+	settings.DownloadProxy = strings.TrimSpace(settings.DownloadProxy)
 	settings.LogLevel = normalizeLogLevel(settings.LogLevel)
 	if settings.CloseAction != CloseActionTray {
 		settings.CloseAction = CloseActionExit

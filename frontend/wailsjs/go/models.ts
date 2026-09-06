@@ -58,6 +58,7 @@ export namespace service {
 	export class AppSettings {
 	    language: string;
 	    close_action: string;
+	    download_proxy: string;
 	    download_user_agent: string;
 	    download_threads: number;
 	    download_dir: string;
@@ -72,6 +73,7 @@ export namespace service {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.language = source["language"];
 	        this.close_action = source["close_action"];
+	        this.download_proxy = source["download_proxy"];
 	        this.download_user_agent = source["download_user_agent"];
 	        this.download_threads = source["download_threads"];
 	        this.download_dir = source["download_dir"];
@@ -241,10 +243,57 @@ export namespace service {
 	        this.message = source["message"];
 	    }
 	}
+	export class DownloadSubmitResult {
+	    success: boolean;
+	    task_id: string;
+	    message?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadSubmitResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.success = source["success"];
+	        this.task_id = source["task_id"];
+	        this.message = source["message"];
+	    }
+	}
+	export class DownloadTaskOptions {
+	    url: string;
+	    file_name: string;
+	    output_dir: string;
+	    connections: number;
+	    user_agent: string;
+	    proxy: string;
+	    headers: Record<string, string>;
+	    checksum_type: string;
+	    checksum_value: string;
+	    skip_tls_verify: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new DownloadTaskOptions(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.url = source["url"];
+	        this.file_name = source["file_name"];
+	        this.output_dir = source["output_dir"];
+	        this.connections = source["connections"];
+	        this.user_agent = source["user_agent"];
+	        this.proxy = source["proxy"];
+	        this.headers = source["headers"];
+	        this.checksum_type = source["checksum_type"];
+	        this.checksum_value = source["checksum_value"];
+	        this.skip_tls_verify = source["skip_tls_verify"];
+	    }
+	}
 	export class OShinDInfo {
 	    installed: boolean;
 	    version: string;
 	    repo_url: string;
+	    load_error?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new OShinDInfo(source);
@@ -255,11 +304,13 @@ export namespace service {
 	        this.installed = source["installed"];
 	        this.version = source["version"];
 	        this.repo_url = source["repo_url"];
+	        this.load_error = source["load_error"];
 	    }
 	}
 	export class OShinDUpdateResult {
 	    success: boolean;
 	    message: string;
+	    current_version?: string;
 	    latest_version: string;
 	    has_update: boolean;
 	    changelog: string;
@@ -273,6 +324,7 @@ export namespace service {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.success = source["success"];
 	        this.message = source["message"];
+	        this.current_version = source["current_version"];
 	        this.latest_version = source["latest_version"];
 	        this.has_update = source["has_update"];
 	        this.changelog = source["changelog"];
