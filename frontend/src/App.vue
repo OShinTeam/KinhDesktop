@@ -18,8 +18,47 @@ function handleLoginSuccess(result) {
   credential.value = result
 }
 
+// ==================== 全局键盘滚动 ====================
+// 滚动条已全局隐藏，滚轮不受影响；键盘上下键默认只作用于焦点所在容器，
+// 点击列表项后焦点不在滚动容器上会失效，这里转发到目标所在的最近可滚动容器
+const scrollKeys = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown'])
+
+// 判断元素是否为实际可滚动的纵向容器
+function isScrollable(el) {
+  if (!(el instanceof HTMLElement)) return false
+  const style = getComputedStyle(el)
+  const canScroll = style.overflowY === 'auto' || style.overflowY === 'scroll'
+  return canScroll && el.scrollHeight > el.clientHeight
+}
+
+// 目标元素向上找最近的可滚动容器；找不到则从候选主容器中挑第一个可滚动的
+function findScrollTarget(from) {
+  for (let node = from; node && node !== document.body; node = node.parentElement) {
+    if (isScrollable(node)) return node
+  }
+  return [...document.querySelectorAll('.app-content, .file-list, .settings-body, .task-list')]
+    .find(isScrollable) || null
+}
+
+function handleKeyScroll(e) {
+  if (!scrollKeys.has(e.key)) return
+  const target = e.target
+  const tag = (target?.tagName || '').toLowerCase()
+  // 输入类控件内的方向键交给默认行为（光标移动）
+  if (tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable) return
+
+  const from = (target instanceof HTMLElement && target !== document.body) ? target : document.activeElement
+  const el = findScrollTarget(from instanceof HTMLElement ? from : document.body)
+  if (!el) return
+  e.preventDefault()
+  const page = el.clientHeight * 0.85
+  const delta = e.key === 'ArrowUp' ? -80 : e.key === 'ArrowDown' ? 80 : e.key === 'PageUp' ? -page : page
+  el.scrollBy({ top: delta, behavior: 'smooth' })
+}
+
 // 启动时尝试用本地保存的登录信息自动登录，无记录才进入登录页
 onMounted(async () => {
+  window.addEventListener('keydown', handleKeyScroll)
   try {
     const restored = await RestoreLogin()
     if (restored && restored.success) {

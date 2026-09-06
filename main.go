@@ -32,6 +32,9 @@ func main() {
 		Title:  appName,
 		Width:  1024,
 		Height: 768,
+		// 最小窗口尺寸：防止用户缩得过小导致布局挤压不可用
+		MinWidth:  800,
+		MinHeight: 600,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},

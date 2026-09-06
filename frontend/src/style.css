@@ -35,5 +35,19 @@ body {
 body, html {
   margin: 0 !important; /* 去除默认边距，优化显示效果 */
   padding: 0 !important; /* 去除默认边距，优化显示效果 */
-  scrollbar-width: none; /* 隐藏滚动条 */
+}
+
+/* ==================== 全局隐藏滚动条 ====================
+   仅隐藏视觉滚动条，滚动能力保留：滚轮/键盘上下/触摸照常。
+   各页面滚动容器（App.vue app-content、FileList、DownloadsView
+   task-list、SettingsView settings-body 等）无需单独处理。 */
+* {
+  scrollbar-width: none; /* Firefox / WebView2 标准属性 */
+  -ms-overflow-style: none; /* 旧版 IE/Edge */
+}
+
+*::-webkit-scrollbar {
+  display: none; /* Chromium 内核（WebView2） */
+  width: 0;
+  height: 0;
 }

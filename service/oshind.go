@@ -150,7 +150,8 @@ type OShinDInfo struct {
 func (a *App) GetOShinDVersion() OShinDInfo {
 	info := OShinDInfo{
 		Version: oshindNotInstalled,
-		RepoURL: "https://github.com/" + oshindRepo,
+		// 未安装时引导跳转直接指向 Releases 页（下载组件入口）
+		RepoURL: "https://github.com/" + oshindRepo + "/releases",
 	}
 	installed, version, loadErr := loadOShinD()
 	info.Installed = installed

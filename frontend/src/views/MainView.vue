@@ -183,15 +183,16 @@ async function copyText(text, successMsg) {
   return ok
 }
 
+// 复制后不关闭弹窗：用户通常需要同时复制链接与 UA 两个参数，仅在点击取消时关闭
 async function copyDownloadLink() {
-  if (downloadLink.value?.url && await copyText(downloadLink.value.url, t('download_link_copied', '下载直链已复制到剪贴板'))) {
-    closeDownloadLink()
+  if (downloadLink.value?.url) {
+    await copyText(downloadLink.value.url, t('download_link_copied', '下载直链已复制到剪贴板'))
   }
 }
 
 async function copyDownloadUA() {
-  if (downloadLink.value?.ua && await copyText(downloadLink.value.ua, t('download_ua_copied', 'User-Agent 已复制到剪贴板'))) {
-    closeDownloadLink()
+  if (downloadLink.value?.ua) {
+    await copyText(downloadLink.value.ua, t('download_ua_copied', 'User-Agent 已复制到剪贴板'))
   }
 }
 

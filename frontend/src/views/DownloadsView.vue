@@ -26,9 +26,8 @@ async function loadOshindState() {
 }
 
 function openRepoPage() {
-  if (oshindRepoURL.value) {
-    BrowserOpenURL(oshindRepoURL.value)
-  }
+  // 优先用后端返回的 Releases 地址，异常时回退固定地址
+  BrowserOpenURL(oshindRepoURL.value || 'https://github.com/OshinTeam/OShinD/releases')
 }
 
 // 任务列表轮询（组件状态由组件侧维护，前端 1s 拉取一次）
@@ -245,11 +244,11 @@ onUnmounted(stopPolling)
         <div class="install-steps">
           <p class="install-intro">{{ t('oshind_install_intro', 'OShinD 是跨平台多线程下载引擎，安装后即可在应用内管理下载任务。') }}</p>
           <ol class="install-list">
-            <li>{{ t('oshind_install_step1', '访问 OShinD 仓库 Releases 页面') }}</li>
-            <li>{{ t('oshind_install_step2', '下载对应平台组件（Windows: oshind.dll）') }}</li>
-            <li>{{ t('oshind_install_step3', '将组件放入程序 data 目录后重启应用') }}</li>
+            <li>{{ t('oshind_install_step1', '前往 OShinD Releases 页面，下载 oshind-windows-amd64.dll') }}</li>
+            <li>{{ t('oshind_install_step2', '将下载的组件重命名为 oshind.dll') }}</li>
+            <li>{{ t('oshind_install_step3', '放入程序所在目录的 data 文件夹，重启应用') }}</li>
           </ol>
-          <el-button type="primary" @click="openRepoPage">{{ t('update_view_page', '前往查看') }}</el-button>
+          <el-button type="primary" @click="openRepoPage">{{ t('oshind_go_releases', '前往下载') }}</el-button>
         </div>
       </el-empty>
     </div>
