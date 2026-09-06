@@ -93,8 +93,8 @@ var (
 // 必须在 global.Init() 的 InitLang() 之前调用，否则语言系统会按默认值 zh-CN 固化，
 // 导致「修改语言后重启不生效」（设置文件里的语言只在设置页打开时才被读取）。
 //
-// 日志等级不在本函数应用：启动顺序为 InitLogger（默认 info）→ ApplyLogSetting，
-// 保证设置加载过程中的日志有输出通道，且日志未初始化不作为降级理由。
+// 日志等级不在本函数应用：启动顺序为 InitLogger（默认 info）→ InitSettings → global.Init
+// → ApplyLogSetting，设置加载前日志已就绪，加载过程的问题有输出通道。
 func InitSettings() {
 	settings := loadSettings()
 	appSettings = settings
@@ -110,6 +110,7 @@ func ApplyLogSetting() {
 }
 
 // loadSettings 启动时读取设置文件，不存在或损坏时回退默认值
+// 启动顺序保证：main 先 InitLogger 再 InitSettings，日志通道已就绪
 func loadSettings() *AppSettings {
 	data, err := os.ReadFile(settingsFilePath())
 	if err != nil {

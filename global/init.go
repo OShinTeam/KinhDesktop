@@ -19,9 +19,8 @@ func Init() {
 		}
 	}
 
-	InitLogger()
-	Log.Info("日志系统初始化完成")
-
+	// 日志系统由 main 在加载设置前显式 InitLogger（设置加载需要日志输出通道），
+	// 此处仅负责语言系统初始化
 	InitLang()
 	Log.Infof("语言系统初始化完成，当前语言: %s", useLangPath)
 }
