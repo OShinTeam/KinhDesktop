@@ -22,6 +22,9 @@ const form = reactive({
   download_acc_link: '',
   log_level: 'info'
 })
+
+// 内置默认 UA（与后端 DefaultUserAgent 一致），恢复默认按钮使用
+const builtInDefaultUA = 'netdisk;DL'
 const loading = ref(false)
 const saving = ref(false)
 
@@ -73,8 +76,6 @@ watch(form, refreshDirty, { deep: true })
 
 // 语言选项（后端扫描 lang 目录得到）
 const langOptions = ref([])
-// 默认 UA（恢复默认按钮使用，取后端返回的初始值）
-const defaultUA = ref('')
 
 // 日志等级与关闭行为选项
 const logLevelOptions = [
@@ -93,7 +94,6 @@ async function loadSettings() {
   try {
     const [settings, langs] = await Promise.all([GetSettings(), GetALLLang()])
     Object.assign(form, settings)
-    defaultUA.value = settings.download_user_agent
     langOptions.value = (langs || []).map(l => ({
       value: l.language_code,
       label: `${l.language_name} (${l.language_code})`
@@ -140,7 +140,7 @@ function handleChooseDir() {
 }
 
 function handleResetUA() {
-  if (defaultUA.value) form.download_user_agent = defaultUA.value
+  form.download_user_agent = builtInDefaultUA
 }
 
 // ==================== 版本与检查更新 ====================

@@ -41,16 +41,29 @@ type AppSettings struct {
 	LogLevel string `json:"log_level"` // 日志等级：debug/info/warn/error
 }
 
+// DefaultUserAgent 内置默认下载 UA（DefaultSettings / 保存兜底 / 运行时回退三处共用）
+const DefaultUserAgent = "netdisk;DL"
+
 // DefaultSettings 返回默认设置（线程数、UA、下载目录取常见默认值）
 func DefaultSettings() *AppSettings {
 	return &AppSettings{
 		Language:          "zh-CN",
 		CloseAction:       CloseActionExit,
-		DownloadUserAgent: "netdisk;DL",
+		DownloadUserAgent: DefaultUserAgent,
 		DownloadThreads:   4,
 		DownloadDir:       defaultDownloadDir(),
 		LogLevel:          "info",
 	}
+}
+
+// effectiveDownloadUA 返回实际生效的下载 UA：设置值为空时回退内置默认值。
+// 直链解析与实际下载共用同一 UA（百度直链绑定 UA，解析与下载必须一致）；
+// 旧版设置文件可能存在空 UA，不兜底会导致空 UA 请求与组件默认 UA 不一致。
+func effectiveDownloadUA() string {
+	if ua := strings.TrimSpace(getSettings().DownloadUserAgent); ua != "" {
+		return ua
+	}
+	return DefaultUserAgent
 }
 
 // settingsFilePath 设置文件路径（与凭证同目录）
@@ -176,6 +189,10 @@ func (a *App) SaveSettings(settings AppSettings) string {
 	}
 	settings.DownloadAccLink = strings.TrimSpace(settings.DownloadAccLink)
 	settings.DownloadProxy = strings.TrimSpace(settings.DownloadProxy)
+	// UA 兜底：留空时落默认值，保证设置文件里永远有有效 UA
+	if strings.TrimSpace(settings.DownloadUserAgent) == "" {
+		settings.DownloadUserAgent = DefaultUserAgent
+	}
 	settings.LogLevel = normalizeLogLevel(settings.LogLevel)
 	if settings.CloseAction != CloseActionTray {
 		settings.CloseAction = CloseActionExit

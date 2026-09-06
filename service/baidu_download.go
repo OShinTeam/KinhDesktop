@@ -90,8 +90,8 @@ func resolveWithRetry(fsID int64, once func(fsID int64, bduss, stoken, ua string
 		}
 	}
 
-	// 请求使用的 UA 取下载设置中的默认 UA
-	ua := getSettings().DownloadUserAgent
+	// 请求使用的 UA 取下载设置中的默认 UA（空值回退内置默认，与实际下载保持一致）
+	ua := effectiveDownloadUA()
 
 	result, errno := once(fsID, credential.BDUSS, stoken, ua)
 
@@ -200,7 +200,7 @@ func fetchDownloadLinkRemoteOnce(fsID int64, bduss, stoken, acclink string) (*Ba
 		result.Message = "获取下载地址失败: 网络请求异常"
 		return result, -1
 	}
-	req.Header.Set("User-Agent", getSettings().DownloadUserAgent)
+	req.Header.Set("User-Agent", effectiveDownloadUA())
 	req.Header.Set("Cookie", "BDUSS="+bduss+";STOKEN="+stoken)
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 

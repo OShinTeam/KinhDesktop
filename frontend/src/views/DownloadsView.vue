@@ -120,14 +120,14 @@ const showDialog = ref(false)
 const submitting = ref(false)
 
 const defaultDir = ref('')
-const defaultUA = ref('')
-const defaultThreads = 4
+const defaultThreads = ref(4)
+const defaultProxy = ref('')
 
 const newTask = ref({
   url: '',
   file_name: '',
   output_dir: '',
-  connections: defaultThreads,
+  connections: 4,
   user_agent: '',
   proxy: '',
   headers_text: '',
@@ -140,26 +140,29 @@ async function loadDefaults() {
   try {
     const settings = await GetSettings()
     defaultDir.value = settings?.download_dir || ''
-    defaultUA.value = settings?.download_user_agent || ''
-    // 表单默认值取设置
+    defaultThreads.value = settings?.download_threads || 4
+    defaultProxy.value = settings?.download_proxy || ''
+    // 表单默认值：目录/线程/代理取设置，UA 留空由后端回退默认值（避免设置改动后表单残留旧值）
     newTask.value.output_dir = defaultDir.value
-    newTask.value.user_agent = defaultUA.value
-    newTask.value.connections = settings?.download_threads || defaultThreads
-    newTask.value.proxy = settings?.download_proxy || ''
+    newTask.value.connections = defaultThreads.value
+    newTask.value.proxy = defaultProxy.value
   } catch {
     // 设置读取失败时使用空默认
   }
 }
 
 function openNewTaskDialog() {
-  // 每次打开重置 URL 与高级项，保留设置默认值
+  // 每次打开重置全部字段，目录/线程/代理恢复设置默认值，UA 留空走后端默认
   newTask.value.url = ''
   newTask.value.file_name = ''
+  newTask.value.user_agent = ''
+  newTask.value.headers_text = ''
   newTask.value.checksum_type = ''
   newTask.value.checksum_value = ''
   newTask.value.skip_tls_verify = false
   newTask.value.output_dir = defaultDir.value
-  newTask.value.user_agent = defaultUA.value
+  newTask.value.connections = defaultThreads.value
+  newTask.value.proxy = defaultProxy.value
   showDialog.value = true
 }
 

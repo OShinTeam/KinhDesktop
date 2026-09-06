@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 	"time"
 	"unsafe"
@@ -74,7 +75,7 @@ func (a *App) SubmitDownload(url, fileName string, fsID int64) *DownloadSubmitRe
 	}
 
 	settings := getSettings()
-	opts := oshindDownloadOptions(url, settings.DownloadUserAgent, settings.DownloadDir, settings.DownloadProxy, settings.DownloadThreads)
+	opts := oshindDownloadOptions(url, effectiveDownloadUA(), settings.DownloadDir, settings.DownloadProxy, settings.DownloadThreads)
 
 	ret, _, err := oshindProcDl.Call(strPtr(url), strPtr(opts))
 	if err != nil && isRealErr(err) {
@@ -190,8 +191,8 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 		outputDir = settings.DownloadDir
 	}
 	ua := opts.UserAgent
-	if ua == "" {
-		ua = settings.DownloadUserAgent
+	if strings.TrimSpace(ua) == "" {
+		ua = effectiveDownloadUA()
 	}
 	proxy := opts.Proxy
 	if proxy == "" {
