@@ -309,16 +309,16 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
           />
         </div>
 
-        <!-- 远程解析加速链接：留空仅本地解析，填写后文件列表可用远程解析 -->
+        <!-- 远程解析：加速链接服务地址，留空仅本地解析，填写后文件列表可用远程解析 -->
         <div class="setting-row">
           <div class="setting-info">
-            <div class="setting-label">{{ t('settings_acclink', '远程解析加速链接') }}</div>
-            <div class="setting-desc">{{ t('settings_acclink_desc', '填写后可在文件列表使用远程解析；留空仅本地解析') }}</div>
+            <div class="setting-label">{{ t('settings_remote_resolve', '远程解析') }}</div>
+            <div class="setting-desc">{{ t('settings_acclink', '加速链接服务地址') }}</div>
           </div>
           <div class="setting-inline">
             <el-input
               v-model="form.download_acc_link"
-              :placeholder="t('settings_acclink_placeholder', 'https://（加速服务地址，留空禁用）')"
+              :placeholder="t('settings_acclink_placeholder', '留空禁用')"
               clearable
             />
           </div>

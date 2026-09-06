@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { GetBaiduFileList, GetBaiduQuota, BaiduLogout, GetBaiduDownloadLink, GetBaiduDownloadLinkRemote } from '../../wailsjs/go/service/App'
+import { GetBaiduFileList, GetBaiduQuota, BaiduLogout, GetBaiduDownloadLink, GetBaiduDownloadLinkRemote, GetSettings } from '../../wailsjs/go/service/App'
 import { BrowserOpenURL, ClipboardSetText } from '../../wailsjs/runtime/runtime'
 import FileList from '../components/FileList.vue'
 import Breadcrumb from '../components/Breadcrumb.vue'
@@ -25,6 +25,18 @@ const activePage = ref('files')
 const files = ref([])
 const loading = ref(false)
 const currentDir = ref('/')
+
+// 远程解析是否可用：设置中配置了加速链接时文件列表才显示远程解析按钮
+const remoteEnabled = ref(false)
+
+async function loadRemoteEnabled() {
+  try {
+    const settings = await GetSettings()
+    remoteEnabled.value = !!settings?.download_acc_link
+  } catch {
+    remoteEnabled.value = false
+  }
+}
 
 // 设置页组件引用：脏检测（未保存修改时切换页面需拦截确认）
 const settingsRef = ref(null)
@@ -58,6 +70,10 @@ async function handleMenuSelect(key) {
     } else {
       return // 留在本页，不切换
     }
+  }
+  // 离开设置页时刷新远程解析可用状态（设置中加速链接可能已被修改/保存）
+  if (activePage.value === 'settings') {
+    loadRemoteEnabled()
   }
   activePage.value = key
 }
@@ -181,6 +197,7 @@ async function handleLogout() {
 onMounted(() => {
   loadFiles('/')
   loadQuota()
+  loadRemoteEnabled()
 })
 
 const menuItems = [
@@ -277,6 +294,7 @@ function vipInfo(vipType) {
           <FileList
             :files="files"
             :loading="loading"
+            :remote-enabled="remoteEnabled"
             @navigate="loadFiles"
             @action="handleFileAction"
           />

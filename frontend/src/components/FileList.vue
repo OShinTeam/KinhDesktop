@@ -9,7 +9,8 @@ const { t } = useI18n()
 
 const props = defineProps({
   files: { type: Array, default: () => [] },
-  loading: { type: Boolean, default: false }
+  loading: { type: Boolean, default: false },
+  remoteEnabled: { type: Boolean, default: false } // 远程解析是否可用（已配置加速链接）
 })
 
 const emit = defineEmits(['navigate', 'action'])
@@ -101,6 +102,7 @@ function triggerAction(item, type) {
               @click="triggerAction(item, 'download')"
             />
             <el-button
+              v-if="remoteEnabled"
               class="file-download-btn"
               circle
               :icon="Connection"
