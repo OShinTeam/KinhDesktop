@@ -291,7 +291,6 @@ onUnmounted(stopPolling)
       <span class="page-title">{{ t('page_downloads', '下载管理') }}</span>
       <el-button
         v-if="oshindInstalled"
-        type="primary"
         :icon="Plus"
         @click="openNewTaskDialog"
       >
