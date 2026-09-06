@@ -65,6 +65,8 @@ export function ReadFileContent(arg1:string):Promise<string>;
 
 export function RestoreLogin():Promise<service.BaiduLoginResult>;
 
+export function ResumeDownloadTask(arg1:string):Promise<boolean>;
+
 export function SaveFileSelect():Promise<string>;
 
 export function SaveSettings(arg1:service.AppSettings):Promise<string>;

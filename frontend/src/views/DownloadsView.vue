@@ -1,11 +1,11 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { GetDownloadTasks, CancelDownloadTask, PauseDownloadTask, GetSettings, GetOShinDVersion, SubmitDownloadWithOptions } from '../../wailsjs/go/service/App'
+import { GetDownloadTasks, CancelDownloadTask, PauseDownloadTask, ResumeDownloadTask, GetSettings, GetOShinDVersion, SubmitDownloadWithOptions } from '../../wailsjs/go/service/App'
 import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 import { formatBytes } from '../utils/format'
 import { useI18n } from '../composables/useI18n'
-import { Plus, CircleClose, VideoPause } from '@element-plus/icons-vue'
+import { Plus, CircleClose, VideoPause, VideoPlay } from '@element-plus/icons-vue'
 
 const { t } = useI18n()
 
@@ -99,6 +99,7 @@ function sizeOf(task) {
 }
 
 const runningStatuses = ['PENDING', 'PROBING', 'DOWNLOADING', 'RESUMING', 'VERIFYING']
+const resumableStatuses = ['PAUSED', 'FAILED']
 
 async function handleCancel(task) {
   try {
@@ -125,6 +126,20 @@ async function handlePause(task) {
     }
   } catch (err) {
     ElMessage.error(t('task_pause_failed', '暂停任务失败') + ': ' + String(err))
+  }
+}
+
+async function handleResume(task) {
+  try {
+    const ok = await ResumeDownloadTask(task.task_id)
+    if (ok) {
+      ElMessage.success(t('task_resume_success', '任务已恢复'))
+      refreshTasks()
+    } else {
+      ElMessage.error(t('task_resume_failed', '恢复任务失败'))
+    }
+  } catch (err) {
+    ElMessage.error(t('task_resume_failed', '恢复任务失败') + ': ' + String(err))
   }
 }
 
@@ -295,6 +310,13 @@ onUnmounted(stopPolling)
               circle
               :title="t('task_pause', '暂停')"
               @click="handlePause(task)"
+            />
+            <el-button
+              v-if="resumableStatuses.includes(task.status)"
+              :icon="VideoPlay"
+              circle
+              :title="t('task_resume', '继续')"
+              @click="handleResume(task)"
             />
             <el-button
               v-if="runningStatuses.includes(task.status)"

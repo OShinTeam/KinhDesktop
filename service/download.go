@@ -116,7 +116,7 @@ func (a *App) GetDownloadTasks() []map[string]interface{} {
 	downloadMu.Unlock()
 
 	list := make([]map[string]interface{}, 0, len(tasks))
-	for _, entry := range tasks {
+	for idx, entry := range tasks {
 		item := map[string]interface{}{
 			"task_id":    entry.TaskID,
 			"file_name":  entry.FileName,
@@ -127,10 +127,19 @@ func (a *App) GetDownloadTasks() []map[string]interface{} {
 		if statusJSON := oshindTaskStatus(entry.TaskID); statusJSON != "" {
 			var status map[string]interface{}
 			if json.Unmarshal([]byte(statusJSON), &status) == nil {
-				for _, k := range []string{"status", "progress", "speed", "downloaded", "total", "error"} {
+				for _, k := range []string{"status", "progress", "speed", "downloaded", "total", "error", "file_name"} {
 					if v, ok := status[k]; ok {
 						item[k] = v
 					}
+				}
+				// probe 后组件返回真实文件名（含 Content-Disposition 名称），
+				// 台账为空时回填；用户显式指定的名称不覆盖
+				if name, _ := status["file_name"].(string); name != "" {
+					downloadMu.Lock()
+					if downloadTasks[idx].TaskID == entry.TaskID && downloadTasks[idx].FileName == "" {
+						downloadTasks[idx].FileName = name
+					}
+					downloadMu.Unlock()
 				}
 			}
 		}
@@ -164,6 +173,47 @@ func (a *App) PauseDownloadTask(taskID string) bool {
 		global.Log.Warnf("OShinD 暂停任务失败: %v", err)
 		return false
 	}
+	return true
+}
+
+// ResumeDownloadTask 恢复暂停/失败的任务
+// 组件侧移除旧任务并重新提交（自动检测 .oshin 断点状态），返回新任务 ID，
+// 台账条目需同步替换 ID，否则后续轮询查不到状态
+func (a *App) ResumeDownloadTask(taskID string) bool {
+	installed, _, _ := loadOShinD()
+	if !installed || oshindProcResume == nil {
+		return false
+	}
+	ret, _, err := oshindProcResume.Call(strPtr(taskID))
+	if err != nil && isRealErr(err) {
+		global.Log.Warnf("OShinD 恢复任务失败: %v", err)
+		return false
+	}
+	resp := cStringToGo(ret)
+	var result struct {
+		ID    string `json:"id"`
+		Error string `json:"error"`
+	}
+	if json.Unmarshal([]byte(resp), &result) != nil || result.ID == "" {
+		global.Log.Warnf("OShinD 恢复任务返回异常: %s", resp)
+		return false
+	}
+	if result.Error != "" {
+		global.Log.Warnf("OShinD 恢复任务失败: %s", result.Error)
+		return false
+	}
+
+	// 台账换 ID（保持原位置与创建时间、文件名元数据）
+	downloadMu.Lock()
+	for i := range downloadTasks {
+		if downloadTasks[i].TaskID == taskID {
+			downloadTasks[i].TaskID = result.ID
+			break
+		}
+	}
+	downloadMu.Unlock()
+
+	global.Log.Infof("下载任务已恢复: %s -> %s", taskID, result.ID)
 	return true
 }
 

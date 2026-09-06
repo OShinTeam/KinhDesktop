@@ -126,6 +126,10 @@ export function RestoreLogin() {
   return window['go']['service']['App']['RestoreLogin']();
 }
 
+export function ResumeDownloadTask(arg1) {
+  return window['go']['service']['App']['ResumeDownloadTask'](arg1);
+}
+
 export function SaveFileSelect() {
   return window['go']['service']['App']['SaveFileSelect']();
 }
