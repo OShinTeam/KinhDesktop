@@ -1,11 +1,11 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { GetDownloadTasks, CancelDownloadTask, PauseDownloadTask, ResumeDownloadTask, GetSettings, GetOShinDVersion, SubmitDownloadWithOptions } from '../../wailsjs/go/service/App'
+import { GetDownloadTasks, CancelDownloadTask, PauseDownloadTask, ResumeDownloadTask, RemoveDownloadTask, GetSettings, GetOShinDVersion, SubmitDownloadWithOptions } from '../../wailsjs/go/service/App'
 import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
 import { formatBytes } from '../utils/format'
 import { useI18n } from '../composables/useI18n'
-import { Plus, CircleClose, VideoPause, VideoPlay } from '@element-plus/icons-vue'
+import { Plus, CircleClose, VideoPause, VideoPlay, Delete } from '@element-plus/icons-vue'
 
 const { t } = useI18n()
 
@@ -140,6 +140,38 @@ async function handleResume(task) {
     }
   } catch (err) {
     ElMessage.error(t('task_resume_failed', '恢复任务失败') + ': ' + String(err))
+  }
+}
+
+// ==================== 移除任务（确认弹窗，可选删除文件） ====================
+const removeDialog = ref(false)
+const removeTarget = ref(null)
+const removeDeleteFiles = ref(false)
+const removing = ref(false)
+
+function openRemoveDialog(task) {
+  removeTarget.value = task
+  removeDeleteFiles.value = false
+  removeDialog.value = true
+}
+
+async function confirmRemove() {
+  if (!removeTarget.value) return
+  removing.value = true
+  try {
+    // 无论是否删除文件，后端都先取消并移除组件侧任务，确保后台不再空跑
+    const result = await RemoveDownloadTask(removeTarget.value.task_id, removeDeleteFiles.value)
+    if (result?.success) {
+      ElMessage.success(t('task_remove_success', '任务已移除'))
+      removeDialog.value = false
+      refreshTasks()
+    } else {
+      ElMessage.error(result?.message || t('task_remove_failed', '移除任务失败'))
+    }
+  } catch (err) {
+    ElMessage.error(t('task_remove_failed', '移除任务失败') + ': ' + String(err))
+  } finally {
+    removing.value = false
   }
 }
 
@@ -325,6 +357,14 @@ onUnmounted(stopPolling)
               :title="t('task_cancel', '取消')"
               @click="handleCancel(task)"
             />
+            <el-button
+              :icon="Delete"
+              circle
+              type="danger"
+              plain
+              :title="t('task_remove', '移除任务')"
+              @click="openRemoveDialog(task)"
+            />
           </div>
         </li>
       </ul>
@@ -391,6 +431,27 @@ onUnmounted(stopPolling)
         </el-button>
       </template>
     </el-dialog>
+
+    <!-- 移除任务确认弹窗 -->
+    <el-dialog
+      v-model="removeDialog"
+      :title="t('task_remove', '移除任务')"
+      width="420px"
+      :close-on-click-modal="false"
+    >
+      <p class="remove-question">
+        {{ t('task_remove_confirm', '确定要移除该任务吗？无论是否删除文件，任务都会先被取消，后台不会继续下载。') }}
+      </p>
+      <el-checkbox v-model="removeDeleteFiles">
+        {{ t('task_remove_delete_files', '同时删除已下载的文件') }}
+      </el-checkbox>
+      <template #footer>
+        <el-button @click="removeDialog = false">{{ t('logout_confirm_cancel', '取消') }}</el-button>
+        <el-button type="danger" :loading="removing" @click="confirmRemove">
+          {{ t('task_remove_confirm_btn', '移除') }}
+        </el-button>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -418,6 +479,13 @@ onUnmounted(stopPolling)
 .page-title {
   font-size: 14px;
   color: #303133;
+}
+
+.remove-question {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #606266;
 }
 
 .page-placeholder {

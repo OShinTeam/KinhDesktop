@@ -122,6 +122,10 @@ export function ReadFileContent(arg1) {
   return window['go']['service']['App']['ReadFileContent'](arg1);
 }
 
+export function RemoveDownloadTask(arg1, arg2) {
+  return window['go']['service']['App']['RemoveDownloadTask'](arg1, arg2);
+}
+
 export function RestoreLogin() {
   return window['go']['service']['App']['RestoreLogin']();
 }

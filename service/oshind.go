@@ -46,6 +46,7 @@ var (
 	oshindProcCancel *syscall.Proc // OShinD_CancelTask 过程句柄
 	oshindProcPause  *syscall.Proc // OShinD_PauseTask 过程句柄
 	oshindProcResume *syscall.Proc // OShinD_ResumeTask 过程句柄
+	oshindProcRemove *syscall.Proc // OShinD_RemoveTask 过程句柄
 )
 
 // oshindLibPath 组件动态库完整路径
@@ -85,6 +86,7 @@ func loadOShinD() (loaded bool, version string, loadErr error) {
 		"OShinD_CancelTask":    &oshindProcCancel,
 		"OShinD_PauseTask":     &oshindProcPause,
 		"OShinD_ResumeTask":    &oshindProcResume,
+		"OShinD_RemoveTask":    &oshindProcRemove,
 	}
 	for name, slot := range required {
 		proc, err := oshindLib.FindProc(name)

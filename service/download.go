@@ -2,6 +2,9 @@ package service
 
 import (
 	"encoding/json"
+	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -215,6 +218,98 @@ func (a *App) ResumeDownloadTask(taskID string) bool {
 
 	global.Log.Infof("下载任务已恢复: %s -> %s", taskID, result.ID)
 	return true
+}
+
+// RemoveDownloadTask 移除任务并删除台账条目
+// deleteFiles 为 true 时同时删除下载产物（成品文件 + .tmp 临时文件 + .oshin 断点状态）。
+// 无论是否删除文件，都先取消并移除组件侧任务（CancelTask + RemoveTask 双重保证），
+// 防止后台继续空跑下载。
+func (a *App) RemoveDownloadTask(taskID string, deleteFiles bool) map[string]interface{} {
+	result := map[string]interface{}{"success": false, "task_removed": false, "files_deleted": false}
+
+	installed, _, _ := loadOShinD()
+	if !installed {
+		result["message"] = "OShinD 组件未安装"
+		return result
+	}
+
+	// 读取台账元数据（文件名/URL 用于删除产物），随后从台账移除
+	downloadMu.Lock()
+	var entry *downloadTaskEntry
+	for i := range downloadTasks {
+		if downloadTasks[i].TaskID == taskID {
+			entry = &downloadTasks[i]
+			downloadTasks = append(downloadTasks[:i], downloadTasks[i+1:]...)
+			break
+		}
+	}
+	downloadMu.Unlock()
+	if entry == nil {
+		result["message"] = "任务不存在"
+		return result
+	}
+	result["task_removed"] = true
+
+	// 组件侧取消 + 移除（RemoveTask 内部亦会 cancel，此处 CancelTask 先行确保运行中任务停止）
+	cancelled := false
+	if oshindProcCancel != nil {
+		ret, _, err := oshindProcCancel.Call(strPtr(taskID))
+		if err == nil || !isRealErr(err) {
+			cancelled = ret == 1
+		}
+	}
+	if oshindProcRemove != nil {
+		ret, _, err := oshindProcRemove.Call(strPtr(taskID))
+		if err == nil || !isRealErr(err) {
+			if ret == 1 {
+				cancelled = true
+			}
+		}
+	}
+	global.Log.Infof("下载任务已移除: %s (%s) 组件侧停止=%v", entry.FileName, taskID, cancelled)
+
+	// 删除下载产物（成品 / .tmp / .oshin）
+	if deleteFiles {
+		deleted := false
+		if entry.URL != "" {
+			// 成品名优先台账记录（用户指定或 probe 回填），无记录时从 URL 提取兜底
+			name := entry.FileName
+			if name == "" {
+				name = fileNameFromURL(entry.URL)
+			}
+			if name != "" {
+				outputPath := filepath.Join(downloadDirForTask(entry), name)
+				for _, p := range []string{outputPath, outputPath + ".tmp", outputPath + ".oshin"} {
+					if err := os.Remove(p); err == nil {
+						deleted = true
+					}
+				}
+			}
+		}
+		result["files_deleted"] = deleted
+	}
+
+	result["success"] = true
+	return result
+}
+
+// downloadDirForTask 任务下载目录（当前统一取设置下载目录；台账未存每任务目录）
+func downloadDirForTask(entry *downloadTaskEntry) string {
+	return getSettings().DownloadDir
+}
+
+// fileNameFromURL 从 URL 提取文件名（与组件 ExtractFileInfo 行为一致的轻量版）
+func fileNameFromURL(rawURL string) string {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	parts := strings.Split(u.Path, "/")
+	name := parts[len(parts)-1]
+	if decoded, err := url.QueryUnescape(name); err == nil && decoded != "" {
+		name = decoded
+	}
+	return name
 }
 
 // DownloadTaskOptions 自定义下载任务选项（前端新建任务弹窗提交）

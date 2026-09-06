@@ -63,6 +63,8 @@ export function PollBaiduQR(arg1:string):Promise<service.BaiduPollResult>;
 
 export function ReadFileContent(arg1:string):Promise<string>;
 
+export function RemoveDownloadTask(arg1:string,arg2:boolean):Promise<Record<string, any>>;
+
 export function RestoreLogin():Promise<service.BaiduLoginResult>;
 
 export function ResumeDownloadTask(arg1:string):Promise<boolean>;
