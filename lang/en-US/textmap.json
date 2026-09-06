@@ -142,5 +142,7 @@
   "task_remove_confirm_btn": "Remove",
   "task_remove_delete_files": "Also delete downloaded files",
   "task_remove_success": "Task removed",
-  "task_remove_failed": "Failed to remove task"
+  "task_remove_failed": "Failed to remove task",
+  "settings_chunk": "Chunk Size",
+  "settings_chunk_desc": "Size of each download chunk (KB), affects multi-threaded download granularity"
 }

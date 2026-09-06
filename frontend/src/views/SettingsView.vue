@@ -18,6 +18,7 @@ const form = reactive({
   download_proxy: '',
   download_user_agent: '',
   download_threads: 4,
+  download_chunk_kb: 500,
   download_dir: '',
   download_acc_link: '',
   log_level: 'info'
@@ -41,6 +42,7 @@ function serializeForm() {
     form.download_proxy,
     form.download_user_agent,
     form.download_threads,
+    form.download_chunk_kb,
     form.download_dir,
     form.download_acc_link,
     form.log_level,
@@ -94,6 +96,8 @@ async function loadSettings() {
   try {
     const [settings, langs] = await Promise.all([GetSettings(), GetALLLang()])
     Object.assign(form, settings)
+    // 旧设置文件无分片字段（0/undefined）时回退默认值
+    if (!form.download_chunk_kb) form.download_chunk_kb = 500
     langOptions.value = (langs || []).map(l => ({
       value: l.language_code,
       label: `${l.language_name} (${l.language_code})`
@@ -307,6 +311,22 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
             :min="1"
             :max="64"
             :step="1"
+            step-strictly
+          />
+        </div>
+
+        <!-- 分片大小：KB 单位，组件侧限制 64KB ~ 1GB -->
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">{{ t('settings_chunk', '分片大小') }}</div>
+            <div class="setting-desc">{{ t('settings_chunk_desc', '') }}</div>
+          </div>
+          <el-input-number
+            v-model="form.download_chunk_kb"
+            class="setting-control"
+            :min="64"
+            :max="1048576"
+            :step="100"
             step-strictly
           />
         </div>

@@ -142,5 +142,7 @@
   "task_remove_confirm_btn": "移除",
   "task_remove_delete_files": "同时删除已下载的文件",
   "task_remove_success": "任务已移除",
-  "task_remove_failed": "移除任务失败"
+  "task_remove_failed": "移除任务失败",
+  "settings_chunk": "分片大小",
+  "settings_chunk_desc": "单个下载分片的大小（KB），影响多线程分段下载粒度"
 }

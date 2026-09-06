@@ -277,12 +277,15 @@ func fetchLatestRelease(repo string) (*githubRelease, error) {
 	return &release, nil
 }
 
-// oshindDownloadOptions 组装组件下载选项 JSON（UA/线程/目录/代理 等）
-func oshindDownloadOptions(url, ua, outputDir, proxy string, connections int) string {
+// oshindDownloadOptions 组装组件下载选项 JSON（UA/线程/目录/代理/分片 等）
+func oshindDownloadOptions(url, ua, outputDir, proxy string, connections, chunkKB int) string {
 	opts := map[string]interface{}{
 		"url":         url,
 		"output_dir":  outputDir,
 		"connections": connections,
+	}
+	if chunkKB > 0 {
+		opts["chunk_size"] = int64(chunkKB) * 1024
 	}
 	if ua != "" {
 		opts["headers"] = map[string]string{"User-Agent": ua}

@@ -142,5 +142,7 @@
   "task_remove_confirm_btn": "제거",
   "task_remove_delete_files": "다운로드된 파일도 삭제",
   "task_remove_success": "작업이 제거되었습니다",
-  "task_remove_failed": "작업 제거 실패"
+  "task_remove_failed": "작업 제거 실패",
+  "settings_chunk": "청크 크기",
+  "settings_chunk_desc": "다운로드 청크 크기(KB), 멀티스레드 다운로드 단위에 영향을 줍니다"
 }

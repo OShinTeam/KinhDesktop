@@ -142,5 +142,7 @@
   "task_remove_confirm_btn": "削除",
   "task_remove_delete_files": "ダウンロード済みファイルも削除する",
   "task_remove_success": "タスクを削除しました",
-  "task_remove_failed": "タスクの削除に失敗しました"
+  "task_remove_failed": "タスクの削除に失敗しました",
+  "settings_chunk": "チャンクサイズ",
+  "settings_chunk_desc": "ダウンロードチャンクのサイズ（KB）、マルチスレッド分割の粒度に影響します"
 }

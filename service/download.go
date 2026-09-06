@@ -78,7 +78,7 @@ func (a *App) SubmitDownload(url, fileName string, fsID int64) *DownloadSubmitRe
 	}
 
 	settings := getSettings()
-	opts := oshindDownloadOptions(url, effectiveDownloadUA(), settings.DownloadDir, settings.DownloadProxy, settings.DownloadThreads)
+	opts := oshindDownloadOptions(url, effectiveDownloadUA(), settings.DownloadDir, settings.DownloadProxy, settings.DownloadThreads, settings.DownloadChunkKB)
 
 	ret, _, err := oshindProcDl.Call(strPtr(url), strPtr(opts))
 	if err != nil && isRealErr(err) {
@@ -318,6 +318,7 @@ type DownloadTaskOptions struct {
 	FileName      string            `json:"file_name"`
 	OutputDir     string            `json:"output_dir"`
 	Connections   int               `json:"connections"`
+	ChunkKB       int               `json:"chunk_kb"`
 	UserAgent     string            `json:"user_agent"`
 	Proxy         string            `json:"proxy"`
 	Headers       map[string]string `json:"headers"`
@@ -361,10 +362,18 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 	if connections <= 0 {
 		connections = settings.DownloadThreads
 	}
+	// 分片大小：前端高级选项未指定（0）时回退设置默认值
+	chunkKB := opts.ChunkKB
+	if chunkKB <= 0 {
+		chunkKB = settings.DownloadChunkKB
+	}
 
 	options := map[string]interface{}{
 		"output_dir":  outputDir,
 		"connections": connections,
+	}
+	if chunkKB > 0 {
+		options["chunk_size"] = int64(chunkKB) * 1024
 	}
 	if ua != "" {
 		options["headers"] = map[string]string{"User-Agent": ua}

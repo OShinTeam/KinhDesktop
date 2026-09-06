@@ -35,6 +35,7 @@ type AppSettings struct {
 	// 下载设置
 	DownloadUserAgent string `json:"download_user_agent"` // 默认 UA
 	DownloadThreads   int    `json:"download_threads"`    // 默认线程数
+	DownloadChunkKB   int    `json:"download_chunk_kb"`   // 分片大小（KB，0 表示未设置用默认值）
 	DownloadDir       string `json:"download_dir"`        // 默认下载目录
 	DownloadAccLink   string `json:"download_acc_link"`   // 远程解析加速链接（留空仅本地解析）
 	// 其他
@@ -44,6 +45,9 @@ type AppSettings struct {
 // DefaultUserAgent 内置默认下载 UA（DefaultSettings / 保存兜底 / 运行时回退三处共用）
 const DefaultUserAgent = "netdisk;DL"
 
+// DefaultChunkKB 默认分片大小（KB）
+const DefaultChunkKB = 500
+
 // DefaultSettings 返回默认设置（线程数、UA、下载目录取常见默认值）
 func DefaultSettings() *AppSettings {
 	return &AppSettings{
@@ -51,6 +55,7 @@ func DefaultSettings() *AppSettings {
 		CloseAction:       CloseActionExit,
 		DownloadUserAgent: DefaultUserAgent,
 		DownloadThreads:   4,
+		DownloadChunkKB:   DefaultChunkKB,
 		DownloadDir:       defaultDownloadDir(),
 		LogLevel:          "info",
 	}
@@ -185,6 +190,8 @@ func (a *App) SaveSettings(settings AppSettings) string {
 	// 校验与规范化
 	settings.Language = strings.TrimSpace(settings.Language)
 	settings.DownloadThreads = clampInt(settings.DownloadThreads, 1, 64)
+	// 分片大小（KB）：OShinD 组件限制 64KB ~ 1GB，夹取后落库
+	settings.DownloadChunkKB = clampInt(settings.DownloadChunkKB, 64, 1024*1024)
 	if strings.TrimSpace(settings.DownloadDir) == "" {
 		settings.DownloadDir = defaultDownloadDir()
 	}

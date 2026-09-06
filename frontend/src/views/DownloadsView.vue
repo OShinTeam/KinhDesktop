@@ -181,6 +181,7 @@ const submitting = ref(false)
 
 const defaultDir = ref('')
 const defaultThreads = ref(4)
+const defaultChunkKB = ref(500)
 const defaultProxy = ref('')
 
 const newTask = ref({
@@ -188,6 +189,7 @@ const newTask = ref({
   file_name: '',
   output_dir: '',
   connections: 4,
+  chunk_kb: 500,
   user_agent: '',
   proxy: '',
   headers_text: '',
@@ -201,10 +203,12 @@ async function loadDefaults() {
     const settings = await GetSettings()
     defaultDir.value = settings?.download_dir || ''
     defaultThreads.value = settings?.download_threads || 4
+    defaultChunkKB.value = settings?.download_chunk_kb || 500
     defaultProxy.value = settings?.download_proxy || ''
-    // 表单默认值：目录/线程/代理取设置，UA 留空由后端回退默认值（避免设置改动后表单残留旧值）
+    // 表单默认值：目录/线程/分片/代理取设置，UA 留空由后端回退默认值（避免设置改动后表单残留旧值）
     newTask.value.output_dir = defaultDir.value
     newTask.value.connections = defaultThreads.value
+    newTask.value.chunk_kb = defaultChunkKB.value
     newTask.value.proxy = defaultProxy.value
   } catch {
     // 设置读取失败时使用空默认
@@ -222,6 +226,7 @@ function openNewTaskDialog() {
   newTask.value.skip_tls_verify = false
   newTask.value.output_dir = defaultDir.value
   newTask.value.connections = defaultThreads.value
+  newTask.value.chunk_kb = defaultChunkKB.value
   newTask.value.proxy = defaultProxy.value
   showDialog.value = true
 }
@@ -251,6 +256,7 @@ async function submitNewTask() {
       file_name: newTask.value.file_name,
       output_dir: newTask.value.output_dir,
       connections: newTask.value.connections,
+      chunk_kb: newTask.value.chunk_kb,
       user_agent: newTask.value.user_agent,
       proxy: newTask.value.proxy,
       headers: parseHeaders(newTask.value.headers_text),
@@ -391,6 +397,9 @@ onUnmounted(stopPolling)
             </el-form-item>
             <el-form-item :label="t('settings_threads', '下载线程数')">
               <el-input-number v-model="newTask.connections" :min="1" :max="64" :step="1" step-strictly />
+            </el-form-item>
+            <el-form-item :label="t('settings_chunk', '分片大小')">
+              <el-input-number v-model="newTask.chunk_kb" :min="64" :max="1048576" :step="100" step-strictly />
             </el-form-item>
             <el-form-item :label="t('settings_ua', '默认 User-Agent')">
               <el-input v-model="newTask.user_agent" :placeholder="t('task_use_default_ua', '留空使用默认 UA')" clearable />
