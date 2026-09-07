@@ -217,7 +217,7 @@ func fetchDownloadLinkRemoteOnce(fsID int64, bduss, stoken, acclink string) (*Ba
 		result.Message = "获取下载地址失败: 读取响应失败"
 		return result, -1
 	}
-	global.Log.Infof("加速链接返回: %s", string(body))
+	global.Log.Debugf("加速链接返回: %s", string(body))
 
 	var remote struct {
 		Errno int    `json:"errno"`
