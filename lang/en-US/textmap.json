@@ -146,5 +146,10 @@
   "task_remove_success": "Task removed",
   "task_remove_failed": "Failed to remove task",
   "settings_chunk": "Chunk Size",
-  "settings_chunk_desc": "Size of each download chunk (KB), affects multi-threaded download granularity"
+  "settings_chunk_desc": "Size of each download chunk (KB), affects multi-threaded download granularity",
+  "settings_max_retries": "Auto-Retry on Failure",
+  "settings_max_retries_desc": "Number of automatic resume attempts after a download fails, 0 to disable",
+  "task_status_retrying": "Retrying",
+  "task_auto_retry": "Download failed, auto-retrying ({i}/{n})",
+  "task_retry_exhausted": "Task still failed after {n} retries, please handle it manually"
 }

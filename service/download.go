@@ -39,6 +39,7 @@ type DownloadSubmitResult struct {
 // downloadTaskStore 本地任务台账（task_id → 元数据），组件侧保存完整状态
 type downloadTaskEntry struct {
 	TaskID   string    `json:"task_id"`
+	Seq      int64     `json:"seq"` // 程序内部自增编号（跨 resume 稳定，组件侧 task_id 会换新）
 	FileName string    `json:"file_name"`
 	URL      string    `json:"url"`
 	Created  time.Time `json:"created_at"`
@@ -47,11 +48,18 @@ type downloadTaskEntry struct {
 var (
 	downloadMu    sync.Mutex
 	downloadTasks []downloadTaskEntry // 提交顺序保留（新任务追加尾部）
+	downloadSeq   int64               // 任务序号计数器（downloadMu 保护）
 
 	// downloadSubmitMu 提交串行锁：查重（磁盘+台账）与台账追加需原子完成，
 	// 避免并发提交同名文件时双双通过检查
 	downloadSubmitMu sync.Mutex
 )
+
+// nextDownloadSeq 分配任务序号（须持有 downloadMu）
+func nextDownloadSeq() int64 {
+	downloadSeq++
+	return downloadSeq
+}
 
 // activeStatuses 组件侧活动状态（占用输出文件，提交同名任务时需避让）
 var activeStatuses = map[string]bool{
@@ -190,6 +198,7 @@ func (a *App) SubmitDownload(url, fileName string, fsID int64) *DownloadSubmitRe
 	downloadMu.Lock()
 	downloadTasks = append(downloadTasks, downloadTaskEntry{
 		TaskID:   taskID,
+		Seq:      nextDownloadSeq(),
 		FileName: fileName,
 		URL:      url,
 		Created:  time.Now(),
@@ -214,13 +223,16 @@ func (a *App) GetDownloadTasks() []map[string]interface{} {
 	tasks := append([]downloadTaskEntry(nil), downloadTasks...)
 	downloadMu.Unlock()
 
+	maxRetries := getSettings().DownloadMaxRetries
 	list := make([]map[string]interface{}, 0, len(tasks))
 	for idx, entry := range tasks {
 		item := map[string]interface{}{
-			"task_id":    entry.TaskID,
-			"file_name":  entry.FileName,
-			"url":        entry.URL,
-			"created_at": entry.Created.Format(time.RFC3339),
+			"task_id":     entry.TaskID,
+			"seq":         entry.Seq,
+			"file_name":   entry.FileName,
+			"url":         entry.URL,
+			"created_at":  entry.Created.Format(time.RFC3339),
+			"max_retries": maxRetries,
 		}
 		// 透传组件状态：失败/组件侧任务丢失时保留台账元数据
 		if statusJSON := oshindTaskStatus(entry.TaskID); statusJSON != "" {
@@ -534,6 +546,7 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 	downloadMu.Lock()
 	downloadTasks = append(downloadTasks, downloadTaskEntry{
 		TaskID:   taskID,
+		Seq:      nextDownloadSeq(),
 		FileName: opts.FileName,
 		URL:      opts.URL,
 		Created:  time.Now(),

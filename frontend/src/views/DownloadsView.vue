@@ -38,6 +38,28 @@ async function refreshTasks() {
   if (!oshindInstalled.value) return
   try {
     tasks.value = await GetDownloadTasks() || []
+    // 失败任务检测：显式提示 + 自动重试（设置 max_retries > 0 时）
+    const seenSeqs = new Set()
+    for (const task of tasks.value) {
+      if (task.seq !== undefined && task.seq !== null) seenSeqs.add(task.seq)
+      // resume 成功后组件侧会生成新任务（task_id 变化）：观察到新任务即视为
+      // 状态切换间隙结束，解除"重试中"标记——不管新任务处于什么状态。
+      // 若只等状态离开 FAILED，新任务在 DOWNLOADING 前再失败会导致标记死锁。
+      if (retryingSeqs.value.has(task.seq) && task.task_id !== resumedTaskIds.value[task.seq]) {
+        delete resumedTaskIds.value[task.seq]
+        retryingSeqs.value.delete(task.seq)
+      }
+      if (task.status === 'FAILED') {
+        handleAutoRetry(task)
+      } else if (task.status === 'DOWNLOADING' || task.status === 'COMPLETED') {
+        // 任务离开失败态（恢复成功/完成）：清零重试计数，下个失败周期从头计
+        if (retryCount.value[task.seq]) delete retryCount.value[task.seq]
+      }
+    }
+    // 任务已被移除/取消：清理其重试状态（用户操作不会被重试覆盖）
+    for (const seq of Object.keys(retryCount.value)) {
+      if (!seenSeqs.has(Number(seq))) clearRetryState(Number(seq))
+    }
   } catch {
     // 轮询失败静默，下轮重试
   }
@@ -66,6 +88,7 @@ function statusLabel(status) {
     COMPLETED: t('task_status_completed', '已完成'),
     FAILED: t('task_status_failed', '失败'),
     PAUSED: t('task_status_paused', '已暂停'),
+    RETRYING: t('task_status_retrying', '重试中'),
   }
   return map[status] || status || '-'
 }
@@ -76,6 +99,7 @@ function statusType(status) {
     case 'COMPLETED': return 'success'
     case 'FAILED': return 'danger'
     case 'PAUSED': return 'info'
+    case 'RETRYING': return 'warning'
     default: return 'warning'
   }
 }
@@ -112,6 +136,81 @@ function sizeOf(task) {
 const runningStatuses = ['PENDING', 'PROBING', 'DOWNLOADING', 'RESUMING', 'VERIFYING']
 const resumableStatuses = ['PAUSED', 'FAILED']
 
+// ==================== 失败自动重试 ====================
+// 轮询检测到 FAILED 时显式提示并立即触发 resume（重试期间状态显示"重试中"），
+// 每个任务累计重试 max_retries 次后停止，转交用户手动处理。
+// 竞态说明：
+//   - 重试状态按后端内部序号 seq 记录（组件侧 task_id 跨 resume 会换新，URL 可能重复）。
+//   - resume 是异步调用，组件侧生成新任务有延迟，期间轮询仍会看到旧 FAILED 任务；
+//     因此 resume 成功后记录旧 task_id 并保留标记，轮询观察到同 seq 的新任务
+//     （task_id 变化）后解除，既防间隙期重复 resume，也不会因状态误判死锁。
+//   - 用户手动操作天然避开竞争：暂停产生 PAUSED（非 FAILED 不会触发重试）、
+//     取消/移除使任务从列表消失（轮询清理重试状态），均不会被重试覆盖。
+const retryCount = ref({})          // seq -> 已重试次数
+const retryingSeqs = ref(new Set()) // 重试进行中的任务 seq（含 resume 后等待新任务生成的间隙）
+const resumedTaskIds = ref({})      // seq -> resume 成功前的旧 task_id（用于轮询识别新任务）
+
+function clearRetryState(seq) {
+  retryingSeqs.value.delete(seq)
+  delete resumedTaskIds.value[seq]
+  delete retryCount.value[seq]
+}
+
+// 状态展示：自动重试进行中的失败任务显示"重试中"而非"失败"
+function displayStatus(task) {
+  if (task.status === 'FAILED' && retryingSeqs.value.has(task.seq)) {
+    return 'RETRYING'
+  }
+  return task.status
+}
+
+async function scheduleRetry(task, maxRetries) {
+  const key = task.seq
+  const count = (retryCount.value[key] || 0) + 1
+  retryCount.value[key] = count
+
+  if (count > maxRetries) {
+    // 重试耗尽：提示用户手动处理（handleAutoRetry 的静默跳过保证只弹这一次）
+    clearRetryState(key)
+    ElMessage.error(t('task_retry_exhausted', '任务重试 {n} 次后仍失败，请手动处理').replace('{n}', String(maxRetries)))
+    return
+  }
+
+  // 标记进行中：阻止 resume 等待期间（组件状态尚未切换）被下一轮轮询重复触发
+  retryingSeqs.value.add(key)
+  ElMessage.warning(t('task_auto_retry', '下载失败，正在自动重试（{i}/{n}）')
+    .replace('{i}', String(count)).replace('{n}', String(maxRetries)))
+
+  try {
+    // 立即执行 resume：按 seq 取轮询列表中的最新任务（resume 会换 task_id，
+    // 失败时捕获的 task_id 可能已失效）
+    const ok = await ResumeDownloadTask(task.task_id)
+    if (ok) {
+      // 成功：记录旧 task_id 并保留"重试中"标记，轮询观察到同 seq 的新任务
+      // 生成（task_id 变化）后解除——防止间隙期重复 resume，也不会死锁
+      resumedTaskIds.value[key] = task.task_id
+      refreshTasks()
+    } else {
+      // 失败：解除标记，下一轮轮询按计数继续重试（scheduleRetry 内判断次数上限）
+      retryingSeqs.value.delete(key)
+    }
+  } catch {
+    retryingSeqs.value.delete(key)
+  }
+}
+
+function handleAutoRetry(task) {
+  const maxRetries = Number(task.max_retries)
+  if (!Number.isFinite(maxRetries) || maxRetries <= 0) return // 0 = 不自动重试
+  const seq = task.seq
+  if (seq === undefined || seq === null) return // 旧后端无 seq 字段时跳过自动重试
+  // 已耗尽重试次数：静默跳过（耗尽提示只在计数首次超限时弹一次）
+  if ((retryCount.value[seq] || 0) > maxRetries) return
+  // 重试进行中（含 resume 后状态切换间隙）：不重复触发
+  if (retryingSeqs.value.has(seq)) return
+  scheduleRetry(task, maxRetries)
+}
+
 async function handleCancel(task) {
   try {
     const ok = await CancelDownloadTask(task.task_id)
@@ -141,6 +240,10 @@ async function handlePause(task) {
 }
 
 async function handleResume(task) {
+  // 手动恢复：终止该任务的自动重试标记，让用户操作立即生效
+  if (task.seq !== undefined && task.seq !== null) {
+    retryingSeqs.value.delete(task.seq)
+  }
   try {
     const ok = await ResumeDownloadTask(task.task_id)
     if (ok) {
@@ -169,6 +272,10 @@ function openRemoveDialog(task) {
 async function confirmRemove() {
   if (!removeTarget.value) return
   removing.value = true
+  // 移除任务时同步清理其自动重试状态，避免残留标记影响后续任务判断
+  if (removeTarget.value.seq !== undefined && removeTarget.value.seq !== null) {
+    clearRetryState(removeTarget.value.seq)
+  }
   try {
     // 无论是否删除文件，后端都先取消并移除组件侧任务，确保后台不再空跑
     const result = await RemoveDownloadTask(removeTarget.value.task_id, removeDeleteFiles.value)
@@ -340,7 +447,7 @@ onUnmounted(stopPolling)
           <div class="task-main">
             <div class="task-name" :title="task.file_name || task.url">{{ task.file_name || task.url }}</div>
             <div class="task-meta">
-              <el-tag :type="statusType(task.status)" size="small">{{ statusLabel(task.status) }}</el-tag>
+              <el-tag :type="statusType(displayStatus(task))" size="small">{{ statusLabel(displayStatus(task)) }}</el-tag>
               <span class="task-size">{{ sizeOf(task) }}</span>
               <span class="task-speed">{{ speedOf(task) }}</span>
               <span v-if="task.active_threads > 0" class="task-connections">{{ task.active_threads }} {{ t('task_connections', '线程') }}</span>
@@ -351,7 +458,7 @@ onUnmounted(stopPolling)
               :percentage="progressOf(task)"
               :show-text="false"
               :stroke-width="6"
-              :status="task.status === 'FAILED' ? 'exception' : task.status === 'COMPLETED' ? 'success' : undefined"
+              :status="displayStatus(task) === 'FAILED' ? 'exception' : displayStatus(task) === 'COMPLETED' ? 'success' : undefined"
             />
           </div>
           <!-- 操作行：按钮按状态固定占位，进度条不因按钮增减被挤压 -->
@@ -365,7 +472,7 @@ onUnmounted(stopPolling)
               @click="handlePause(task)"
             />
             <el-button
-              v-if="resumableStatuses.includes(task.status)"
+              v-if="resumableStatuses.includes(task.status) && !retryingSeqs.has(task.seq)"
               size="small"
               :icon="VideoPlay"
               circle

@@ -146,5 +146,10 @@
   "task_remove_success": "작업이 제거되었습니다",
   "task_remove_failed": "작업 제거 실패",
   "settings_chunk": "청크 크기",
-  "settings_chunk_desc": "다운로드 청크 크기(KB), 멀티스레드 다운로드 단위에 영향을 줍니다"
+  "settings_chunk_desc": "다운로드 청크 크기(KB), 멀티스레드 다운로드 단위에 영향을 줍니다",
+  "settings_max_retries": "실패 시 자동 재시도 횟수",
+  "settings_max_retries_desc": "다운로드 실패 후 자동으로 재개하는 횟수, 0이면 비활성화",
+  "task_status_retrying": "재시도 중",
+  "task_auto_retry": "다운로드 실패, 자동 재시도 중({i}/{n})",
+  "task_retry_exhausted": "{n}회 재시도 후에도 실패했습니다. 수동으로 처리해 주세요"
 }

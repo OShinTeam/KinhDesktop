@@ -21,6 +21,7 @@ const form = reactive({
   download_chunk_kb: 500,
   download_dir: '',
   download_acc_link: '',
+  download_max_retries: 3,
   log_level: 'info'
 })
 
@@ -45,6 +46,7 @@ function serializeForm() {
     form.download_chunk_kb,
     form.download_dir,
     form.download_acc_link,
+    form.download_max_retries,
     form.log_level,
   ])
 }
@@ -98,6 +100,10 @@ async function loadSettings() {
     Object.assign(form, settings)
     // 旧设置文件无分片字段（0/undefined）时回退默认值
     if (!form.download_chunk_kb) form.download_chunk_kb = 500
+    // 旧设置文件无重试字段时回退默认值（后端已落默认 3，此处兜底 undefined）
+    if (form.download_max_retries === undefined || form.download_max_retries === null) {
+      form.download_max_retries = 3
+    }
     langOptions.value = (langs || []).map(l => ({
       value: l.language_code,
       label: `${l.language_name} (${l.language_code})`
@@ -329,6 +335,22 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
             :min="64"
             :max="1048576"
             :step="100"
+            step-strictly
+          />
+        </div>
+
+        <!-- 失败自动重试：下载失败时自动恢复任务的次数，0 为不重试 -->
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">{{ t('settings_max_retries', '失败自动重试次数') }}</div>
+            <div class="setting-desc">{{ t('settings_max_retries_desc', '下载失败后自动恢复任务的次数，0 为不自动重试') }}</div>
+          </div>
+          <el-input-number
+            v-model="form.download_max_retries"
+            class="setting-control"
+            :min="0"
+            :max="10"
+            :step="1"
             step-strictly
           />
         </div>

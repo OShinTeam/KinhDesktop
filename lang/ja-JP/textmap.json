@@ -146,5 +146,10 @@
   "task_remove_success": "タスクを削除しました",
   "task_remove_failed": "タスクの削除に失敗しました",
   "settings_chunk": "チャンクサイズ",
-  "settings_chunk_desc": "ダウンロードチャンクのサイズ（KB）、マルチスレッド分割の粒度に影響します"
+  "settings_chunk_desc": "ダウンロードチャンクのサイズ（KB）、マルチスレッド分割の粒度に影響します",
+  "settings_max_retries": "失敗時の自動リトライ回数",
+  "settings_max_retries_desc": "ダウンロード失敗後に自動で再開する回数、0 で無効",
+  "task_status_retrying": "リトライ中",
+  "task_auto_retry": "ダウンロードに失敗しました、自動リトライ中（{i}/{n}）",
+  "task_retry_exhausted": "{n} 回リトライ後も失敗しました。手動で処理してください"
 }

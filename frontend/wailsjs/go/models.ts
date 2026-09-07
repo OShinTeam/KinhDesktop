@@ -64,6 +64,7 @@ export namespace service {
 	    download_chunk_kb: number;
 	    download_dir: string;
 	    download_acc_link: string;
+	    download_max_retries: number;
 	    log_level: string;
 	
 	    static createFrom(source: any = {}) {
@@ -80,6 +81,7 @@ export namespace service {
 	        this.download_chunk_kb = source["download_chunk_kb"];
 	        this.download_dir = source["download_dir"];
 	        this.download_acc_link = source["download_acc_link"];
+	        this.download_max_retries = source["download_max_retries"];
 	        this.log_level = source["log_level"];
 	    }
 	}

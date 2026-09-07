@@ -33,11 +33,12 @@ type AppSettings struct {
 	CloseAction   string `json:"close_action"`   // 点击关闭后的操作：exit / tray（预留）
 	DownloadProxy string `json:"download_proxy"` // 下载代理（留空不启用），作用于 OShinD 组件下载与直链请求
 	// 下载设置
-	DownloadUserAgent string `json:"download_user_agent"` // 默认 UA
-	DownloadThreads   int    `json:"download_threads"`    // 默认线程数
-	DownloadChunkKB   int    `json:"download_chunk_kb"`   // 分片大小（KB，0 表示未设置用默认值）
-	DownloadDir       string `json:"download_dir"`        // 默认下载目录
-	DownloadAccLink   string `json:"download_acc_link"`   // 远程解析加速链接（留空仅本地解析）
+	DownloadUserAgent  string `json:"download_user_agent"`  // 默认 UA
+	DownloadThreads    int    `json:"download_threads"`     // 默认线程数
+	DownloadChunkKB    int    `json:"download_chunk_kb"`    // 分片大小（KB，0 表示未设置用默认值）
+	DownloadDir        string `json:"download_dir"`         // 默认下载目录
+	DownloadAccLink    string `json:"download_acc_link"`    // 远程解析加速链接（留空仅本地解析）
+	DownloadMaxRetries int    `json:"download_max_retries"` // 下载失败自动重试次数（0 表示不重试）
 	// 其他
 	LogLevel string `json:"log_level"` // 日志等级：debug/info/warn/error
 }
@@ -48,16 +49,20 @@ const DefaultUserAgent = "netdisk;DL"
 // DefaultChunkKB 默认分片大小（KB）
 const DefaultChunkKB = 500
 
+// DefaultMaxRetries 下载失败自动重试次数默认值
+const DefaultMaxRetries = 3
+
 // DefaultSettings 返回默认设置（线程数、UA、下载目录取常见默认值）
 func DefaultSettings() *AppSettings {
 	return &AppSettings{
-		Language:          "zh-CN",
-		CloseAction:       CloseActionExit,
-		DownloadUserAgent: DefaultUserAgent,
-		DownloadThreads:   4,
-		DownloadChunkKB:   DefaultChunkKB,
-		DownloadDir:       defaultDownloadDir(),
-		LogLevel:          "info",
+		Language:           "zh-CN",
+		CloseAction:        CloseActionExit,
+		DownloadUserAgent:  DefaultUserAgent,
+		DownloadThreads:    4,
+		DownloadChunkKB:    DefaultChunkKB,
+		DownloadDir:        defaultDownloadDir(),
+		DownloadMaxRetries: DefaultMaxRetries,
+		LogLevel:           "info",
 	}
 }
 
@@ -192,6 +197,8 @@ func (a *App) SaveSettings(settings AppSettings) string {
 	settings.DownloadThreads = clampInt(settings.DownloadThreads, 1, 64)
 	// 分片大小（KB）：OShinD 组件限制 64KB ~ 1GB，夹取后落库
 	settings.DownloadChunkKB = clampInt(settings.DownloadChunkKB, 64, 1024*1024)
+	// 失败自动重试次数：0 ~ 10 次
+	settings.DownloadMaxRetries = clampInt(settings.DownloadMaxRetries, 0, 10)
 	if strings.TrimSpace(settings.DownloadDir) == "" {
 		settings.DownloadDir = defaultDownloadDir()
 	}
