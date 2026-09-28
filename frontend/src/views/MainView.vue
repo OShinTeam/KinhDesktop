@@ -154,6 +154,13 @@ async function loadFiles(dir = '/') {
   }
 }
 
+// 主动刷新：文件列表与网盘容量一并更新。
+// quota 是账户级数据，与目录导航无关，故不挂在 loadFiles 上，
+// 否则每次切换目录都会产生一次无效的容量请求。
+async function refreshAll() {
+  await Promise.all([loadFiles(currentDir.value), loadQuota()])
+}
+
 // 解析状态：全局同时仅允许一个解析请求。
 // FileList 据此禁用其他按钮并转圈当前按钮；此处兜底拦截，双保险防重入
 const resolving = ref({ active: false, fs_id: 0, type: '', name: '' })
@@ -365,7 +372,7 @@ function vipInfo(vipType) {
             class="files-refresh"
             :icon="Refresh"
             :loading="loading"
-            @click="loadFiles(currentDir)"
+            @click="refreshAll"
           >
             {{ t('file_refresh', '刷新') }}
           </el-button>
