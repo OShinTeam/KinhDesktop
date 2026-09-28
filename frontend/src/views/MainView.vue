@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Clipboard } from '@wailsio/runtime'
+import { Clipboard, System } from '@wailsio/runtime'
 import FileList from '../components/FileList.vue'
 import Breadcrumb from '../components/Breadcrumb.vue'
 import SettingsView from './SettingsView.vue'
@@ -18,6 +18,9 @@ const {
   GetBaiduFileList, GetBaiduQuota, BaiduLogout, GetBaiduDownloadLink,
   GetBaiduDownloadLinkRemote, GetSettings, GetOShinDVersion, SubmitDownload,
 } = App
+
+// 移动端（Android / iOS）：侧栏折叠为图标模式，容量卡片让位给内容区
+const isMobile = System.IsMobile()
 
 // v2 的 ClipboardSetText 返回布尔，v3 的 Clipboard.SetText 失败时抛错，这里还原成原来的语义
 async function ClipboardSetText(text) {
@@ -307,7 +310,7 @@ function vipInfo(vipType) {
 <template>
   <div class="main-layout">
     <!-- 左侧边栏 -->
-    <aside class="sidebar">
+    <aside class="sidebar" :class="{ 'is-mobile': isMobile }">
       <!-- 顶部：网盘容量卡片 -->
       <div class="quota-card">
         <div class="quota-title">
@@ -326,10 +329,16 @@ function vipInfo(vipType) {
       </div>
 
       <!-- 导航菜单 -->
-      <el-menu :default-active="activePage" class="sidebar-menu" @select="handleMenuSelect">
+      <!-- 移动端折叠为图标模式：标题须放进 #title 插槽，collapse 时才会被正确收起 -->
+      <el-menu
+        :default-active="activePage"
+        :collapse="isMobile"
+        class="sidebar-menu"
+        @select="handleMenuSelect"
+      >
         <el-menu-item v-for="item in menuItems" :key="item.key" :index="item.key">
           <el-icon><component :is="item.icon" /></el-icon>
-          <span>{{ t('page_' + item.key, item.key) }}</span>
+          <template #title>{{ t('page_' + item.key, item.key) }}</template>
         </el-menu-item>
       </el-menu>
 
@@ -443,6 +452,16 @@ function vipInfo(vipType) {
   border-right: 1px solid #e4e7ed;
   display: flex;
   flex-direction: column;
+}
+
+/* 移动端：侧栏折叠为图标模式，实际宽度交由 el-menu 的 collapse 决定 */
+.sidebar.is-mobile {
+  width: auto;
+}
+
+/* 容量卡片在折叠后的 64px 宽度里无法排布，移动端让位给内容区 */
+.sidebar.is-mobile .quota-card {
+  display: none;
 }
 
 .sidebar-menu {

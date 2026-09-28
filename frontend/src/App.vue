@@ -131,8 +131,11 @@ onMounted(async () => {
 
 <style scoped>
 .app-layout {
-  width: 100vw;
+  /* 100% 而非 100vw：移动端 100vw 会把滚动条宽度算进去，导致横向溢出 */
+  width: 100%;
+  /* 100dvh：移动端地址栏收缩/展开时不跳动；不支持 dvh 的内核回落到 100vh */
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background-color: #f5f7fa;
@@ -146,6 +149,8 @@ onMounted(async () => {
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
+  /* 移动端底部补足安全区，避免内容被手势条遮挡（桌面端 env 为 0，无影响） */
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 .boot-loading {
