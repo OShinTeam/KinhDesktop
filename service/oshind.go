@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -64,9 +63,10 @@ func loadOShinD() (loaded bool, version string, loadErr error) {
 	}
 	oshindLoaded = true
 
-	libPath := oshindLibPath()
-	if _, err := os.Stat(libPath); err != nil {
-		// 文件不存在属正常未安装场景，不记错误
+	libPath, err := ensureOShinDLib()
+	if err != nil {
+		// 内嵌产物缺失或释放失败均视为「组件不可用」，不影响主程序运行
+		global.Log.Warnf("OShinD 组件准备失败: %v", err)
 		return false, oshindNotInstalled, nil
 	}
 

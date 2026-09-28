@@ -10,6 +10,57 @@ tasks:
     cmds:
       - go mod tidy
 
+  fetch:oshind:
+    summary: 按目标平台拉取 OShinD 组件产物到 service/oshindlib/。动态库不入库，编译前必须就位
+    run: once
+    vars:
+      # 目标平台跟随构建目标：交叉编译时 GOOS/GOARCH 由外部传入，未指定则回落宿主平台。
+      # 走 shell 取值而非 Task 内置变量——内置的 OS/ARCH 在部分版本中并不存在（ARCH 会渲染为空）
+      TARGET_OS:
+        sh: echo "${GOOS:-$(go env GOOS)}"
+      TARGET_ARCH:
+        sh: echo "${GOARCH:-$(go env GOARCH)}"
+      OSHIND_LIB_DIR: ../service/oshindlib
+      # OShinD Releases 的 asset 命名：Windows 无 lib 前缀，其余平台带 lib 前缀
+      OSHIND_PREFIX: '{{if eq .TARGET_OS "windows"}}oshind{{else}}liboshind{{end}}'
+      OSHIND_EXT: '{{if eq .TARGET_OS "windows"}}dll{{else if eq .TARGET_OS "darwin"}}dylib{{else}}so{{end}}'
+      OSHIND_ASSET: '{{.OSHIND_PREFIX}}-{{.TARGET_OS}}-{{.TARGET_ARCH}}.{{.OSHIND_EXT}}'
+      OSHIND_RELEASE: '{{.OSHIND_RELEASE | default "latest"}}'
+      OSHIND_URL: 'https://github.com/OshinTeam/OShinD/releases/{{.OSHIND_RELEASE}}/download/{{.OSHIND_ASSET}}'
+    cmds:
+      # 跳过判断放在脚本内而非 task 的 status：status 是裸字符串命令，
+      # 在 Windows 上可能落到 cmd 执行（test 不可用），会退化成每次构建都重新下载 8MB
+      - |
+        set -e
+        ASSET="{{.OSHIND_LIB_DIR}}/{{.OSHIND_ASSET}}"
+        if [ -f "$ASSET" ] && [ "{{.CLI_FORCE}}" != "true" ]; then
+          echo "OShinD 组件已存在，跳过下载: {{.OSHIND_ASSET}}"
+          exit 0
+        fi
+
+        mkdir -p {{.OSHIND_LIB_DIR}}
+        curl -fsSL --retry 3 --retry-delay 2 -o "$ASSET" "{{.OSHIND_URL}}"
+
+        # 至少挡住 404 页面这类「下载成功但内容不对」的情况；
+        # 需要严格校验时用 OSHIND_SHA256 传入期望值
+        SIZE=$(wc -c < "$ASSET" | tr -d ' ')
+        if [ "$SIZE" -lt 1000000 ]; then
+          echo "OShinD 产物异常（${SIZE} 字节，疑似错误响应），已删除" >&2
+          rm -f "$ASSET"
+          exit 1
+        fi
+        if [ -n "{{.OSHIND_SHA256}}" ]; then
+          ACTUAL=$(sha256sum "$ASSET" | cut -d' ' -f1)
+          if [ "$ACTUAL" != "{{.OSHIND_SHA256}}" ]; then
+            echo "OShinD 产物 sha256 不匹配" >&2
+            echo "  期望: {{.OSHIND_SHA256}}" >&2
+            echo "  实际: $ACTUAL" >&2
+            rm -f "$ASSET"
+            exit 1
+          fi
+        fi
+        echo "OShinD 组件已就位: {{.OSHIND_ASSET}} (${SIZE} 字节)"
+
   install:frontend:deps:
     summary: Install frontend dependencies
     run: once
