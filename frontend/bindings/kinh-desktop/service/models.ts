@@ -218,16 +218,6 @@ export interface OShinDUpdateResult {
     "page_url": string;
 }
 
-export interface SystemInfo {
-    "os": string;
-    "arch": string;
-    "num_cpu": number;
-    "hostname": string;
-    "go_ver": string;
-    "time": string;
-    "process_name": string;
-}
-
 /**
  * UpdateCheckResult 检查更新结果（返回给前端）
  */

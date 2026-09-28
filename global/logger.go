@@ -6,7 +6,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"time"
@@ -183,8 +182,4 @@ func cleanOldLogs(logDir string, maxKeep int) {
 	for _, file := range filesToDelete {
 		os.Remove(filepath.Join(logDir, file.Name()))
 	}
-}
-
-func GetRuntimeInfo() string {
-	return fmt.Sprintf("Go %s, OS %s, Arch %s", runtime.Version(), runtime.GOOS, runtime.GOARCH)
 }

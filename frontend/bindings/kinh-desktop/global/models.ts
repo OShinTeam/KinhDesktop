@@ -10,14 +10,3 @@ export interface LanguageInfo {
     "last_updated": string;
     "version": string;
 }
-
-export interface LanguagePack {
-    "language_name": string;
-    "language_code": string;
-    "textmap_path": string;
-    "translation_progress": string;
-    "translator": string;
-    "last_updated": string;
-    "version": string;
-    "textmap": { [_ in string]?: string } | null;
-}

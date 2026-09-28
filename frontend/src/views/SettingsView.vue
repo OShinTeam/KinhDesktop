@@ -1,6 +1,6 @@
 <script setup>
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Folder, RefreshRight, Link } from '@element-plus/icons-vue'
 import { Browser } from '@wailsio/runtime'
 import { useI18n } from '../composables/useI18n'

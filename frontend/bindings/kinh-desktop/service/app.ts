@@ -102,10 +102,6 @@ export function GetBaiduQuota(): $CancellablePromise<$models.BaiduQuotaInfo | nu
     return $Call.ByID(588009712);
 }
 
-export function GetCurrentLang(): $CancellablePromise<string> {
-    return $Call.ByID(3813649274);
-}
-
 /**
  * GetDownloadTasks 返回任务列表（台账元数据 + 组件实时状态合并）
  */
@@ -113,24 +109,8 @@ export function GetDownloadTasks(): $CancellablePromise<({ [_ in string]?: any }
     return $Call.ByID(1351277853);
 }
 
-export function GetLangPack(): $CancellablePromise<global$0.LanguagePack | null> {
-    return $Call.ByID(1209251452);
-}
-
 export function GetLangTextMap(): $CancellablePromise<{ [_ in string]?: string } | null> {
     return $Call.ByID(2091995996);
-}
-
-export function GetLogFileContent(filename: string): $CancellablePromise<string> {
-    return $Call.ByID(2999618164, filename);
-}
-
-export function GetLogFiles(): $CancellablePromise<string[] | null> {
-    return $Call.ByID(163866400);
-}
-
-export function GetLogLevel(): $CancellablePromise<string> {
-    return $Call.ByID(979683821);
 }
 
 /**
@@ -140,19 +120,11 @@ export function GetOShinDVersion(): $CancellablePromise<$models.OShinDInfo> {
     return $Call.ByID(3641222686);
 }
 
-export function GetProcessName(): $CancellablePromise<string> {
-    return $Call.ByID(2714128149);
-}
-
 /**
  * GetSettings 返回当前设置副本（前端读取入口）
  */
 export function GetSettings(): $CancellablePromise<$models.AppSettings> {
     return $Call.ByID(1857466324);
-}
-
-export function GetSystemInfo(): $CancellablePromise<$models.SystemInfo> {
-    return $Call.ByID(1838409332);
 }
 
 /**
@@ -161,14 +133,6 @@ export function GetSystemInfo(): $CancellablePromise<$models.SystemInfo> {
  */
 export function LoginWithCookie(bduss: string, ptoken: string, rememberLogin: boolean): $CancellablePromise<$models.BaiduLoginResult | null> {
     return $Call.ByID(1310908458, bduss, ptoken, rememberLogin);
-}
-
-export function Notify(title: string, message: string): $CancellablePromise<void> {
-    return $Call.ByID(2340632202, title, message);
-}
-
-export function OpenFileSelect(): $CancellablePromise<string> {
-    return $Call.ByID(100762981);
 }
 
 export function OpenFolderSelect(): $CancellablePromise<string> {
@@ -189,10 +153,6 @@ export function PauseDownloadTask(taskID: string): $CancellablePromise<boolean> 
  */
 export function PollBaiduQR(sign: string): $CancellablePromise<$models.BaiduPollResult | null> {
     return $Call.ByID(4167141106, sign);
-}
-
-export function ReadFileContent(path: string): $CancellablePromise<string> {
-    return $Call.ByID(3026439562, path);
 }
 
 /**
@@ -230,23 +190,11 @@ export function ResumeDownloadTask(taskID: string): $CancellablePromise<boolean>
     return $Call.ByID(3249342345, taskID);
 }
 
-export function SaveFileSelect(): $CancellablePromise<string> {
-    return $Call.ByID(2720509348);
-}
-
 /**
  * SaveSettings 保存设置并立即生效，返回错误信息（空串为成功）
  */
 export function SaveSettings(settings: $models.AppSettings): $CancellablePromise<string> {
     return $Call.ByID(2689818911, settings);
-}
-
-export function SetLanguage(langCode: string): $CancellablePromise<boolean> {
-    return $Call.ByID(1288891019, langCode);
-}
-
-export function SetLogLevel(level: string): $CancellablePromise<boolean> {
-    return $Call.ByID(702413929, level);
 }
 
 /**
@@ -279,8 +227,4 @@ export function WindowMinimise(): $CancellablePromise<void> {
 
 export function WindowToggleMaximise(): $CancellablePromise<void> {
     return $Call.ByID(3772691052);
-}
-
-export function WriteFileContent(path: string, content: string): $CancellablePromise<boolean> {
-    return $Call.ByID(3441468705, path, content);
 }

@@ -23,13 +23,6 @@ import (
 // 同名去重：提交前检查磁盘（成品/.tmp/.oshin）与活动任务，重名自动重命名 name(n).ext；
 //           文件名未知时若存在同 URL 活动任务则显性报错，避免多任务同时写同一文件。
 
-type DownloadTaskInfo struct {
-	TaskID   string `json:"task_id"`
-	URL      string `json:"url"`
-	FileName string `json:"file_name"`
-	Status   string `json:"status"`
-}
-
 type DownloadSubmitResult struct {
 	Success bool   `json:"success"`
 	TaskID  string `json:"task_id"`
