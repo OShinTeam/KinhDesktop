@@ -143,8 +143,11 @@ function goBack() {
   cursor: pointer;
 }
 
-.crumb.link:hover {
-  text-decoration: underline;
+/* 悬停下划线仅在支持悬停的设备生效，避免触摸设备上 :hover 粘住 */
+@media (hover: hover) {
+  .crumb.link:hover {
+    text-decoration: underline;
+  }
 }
 
 /* 当前层级与根目录：深色区分位置，不加粗（避免长路径下头重脚轻） */

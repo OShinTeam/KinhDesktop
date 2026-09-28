@@ -166,8 +166,19 @@ function isResolving(item, type) {
   cursor: pointer;
 }
 
-.file-row:hover {
-  background: #f5f7fa;
+/* 悬停高亮仅在支持悬停的设备生效。
+   触摸设备的 :hover 会「粘住」：点过的行会一直保持高亮，直到点击别处才恢复。 */
+@media (hover: hover) {
+  .file-row:hover {
+    background: #f5f7fa;
+  }
+}
+
+/* 触摸设备改用 :active 提供按下反馈，抬手即解除 */
+@media (hover: none) {
+  .file-row:active {
+    background: #f5f7fa;
+  }
 }
 
 .file-icon {

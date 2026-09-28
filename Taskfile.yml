@@ -15,9 +15,9 @@ includes:
   windows: ./build/windows/Taskfile.yml
   darwin: ./build/darwin/Taskfile.yml
   linux: ./build/linux/Taskfile.yml
-  # 移动端为预留项：后续支持 iOS / Android 时取消注释，并补齐 build/ios、build/android 脚手架目录
+  android: ./build/android/Taskfile.yml
+  # iOS 仍为预留项：补齐 build/ios 脚手架目录后取消注释即可启用
   # ios: ./build/ios/Taskfile.yml
-  # android: ./build/android/Taskfile.yml
 
 tasks:
   build:

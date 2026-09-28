@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Clipboard, System } from '@wailsio/runtime'
+import { Clipboard } from '@wailsio/runtime'
+import { useViewport } from '../composables/useViewport'
 import FileList from '../components/FileList.vue'
 import Breadcrumb from '../components/Breadcrumb.vue'
 import SettingsView from './SettingsView.vue'
@@ -19,8 +20,9 @@ const {
   GetBaiduDownloadLinkRemote, GetSettings, GetOShinDVersion, SubmitDownload,
 } = App
 
-// 移动端（Android / iOS）：侧栏折叠为图标模式，容量卡片让位给内容区
-const isMobile = System.IsMobile()
+// 竖屏（高 > 宽）：导航条移到窗口底部、内容区在上，避免侧栏挤占横向空间；
+// 横屏与桌面端保持左侧栏布局（详见 useViewport）
+const { isPortrait } = useViewport()
 
 // v2 的 ClipboardSetText 返回布尔，v3 的 Clipboard.SetText 失败时抛错，这里还原成原来的语义
 async function ClipboardSetText(text) {
@@ -308,10 +310,10 @@ function vipInfo(vipType) {
 </script>
 
 <template>
-  <div class="main-layout">
-    <!-- 左侧边栏 -->
-    <aside class="sidebar" :class="{ 'is-mobile': isMobile }">
-      <!-- 顶部：网盘容量卡片 -->
+  <div class="main-layout" :class="{ 'is-portrait': isPortrait }">
+    <!-- 左侧边栏：竖屏时由 CSS 转成底部导航条 -->
+    <aside class="sidebar">
+      <!-- 顶部：网盘容量卡片（竖屏的底部导航里放不下，交由 CSS 隐藏） -->
       <div class="quota-card">
         <div class="quota-title">
           <span>{{ t('disk_space', '网盘空间') }}</span>
@@ -328,11 +330,10 @@ function vipInfo(vipType) {
         </div>
       </div>
 
-      <!-- 导航菜单 -->
-      <!-- 移动端折叠为图标模式：标题须放进 #title 插槽，collapse 时才会被正确收起 -->
+      <!-- 导航菜单：竖屏切换为横向排布（mode 是组件属性，必须由 JS 状态驱动，CSS 改不了） -->
       <el-menu
         :default-active="activePage"
-        :collapse="isMobile"
+        :mode="isPortrait ? 'horizontal' : 'vertical'"
         class="sidebar-menu"
         @select="handleMenuSelect"
       >
@@ -402,6 +403,7 @@ function vipInfo(vipType) {
       <SettingsView
         v-else-if="activePage === 'settings'"
         ref="settingsRef"
+        @logout="handleLogout"
       />
     </main>
 
@@ -445,6 +447,12 @@ function vipInfo(vipType) {
   overflow: hidden;
 }
 
+/* 竖屏（高 > 宽）：整体改为纵向，导航条落到窗口底部。
+   用 column-reverse 而不动 DOM 顺序（侧栏仍写在前面），视觉上即「内容在上、导航在下」 */
+.main-layout.is-portrait {
+  flex-direction: column-reverse;
+}
+
 .sidebar {
   width: 220px;
   flex-shrink: 0;
@@ -454,19 +462,32 @@ function vipInfo(vipType) {
   flex-direction: column;
 }
 
-/* 移动端：侧栏折叠为图标模式，实际宽度交由 el-menu 的 collapse 决定 */
-.sidebar.is-mobile {
-  width: auto;
+/* 竖屏：侧栏化身底部导航条 —— 通栏、横排，只保留菜单 */
+.main-layout.is-portrait .sidebar {
+  width: 100%;
+  height: 56px;
+  flex-direction: row;
+  align-items: center;
+  border-right: none;
+  border-top: 1px solid #e4e7ed;
 }
 
-/* 容量卡片在折叠后的 64px 宽度里无法排布，移动端让位给内容区 */
-.sidebar.is-mobile .quota-card {
+/* 容量卡片与账户信息在 56px 高的导航条里排不下，竖屏隐藏 */
+.main-layout.is-portrait .quota-card,
+.main-layout.is-portrait .account-card {
   display: none;
 }
 
 .sidebar-menu {
   border-right: none;
   flex: 1;
+}
+
+/* 竖屏：菜单横向铺满导航条 */
+.main-layout.is-portrait .sidebar-menu {
+  display: flex;
+  justify-content: space-around;
+  border-top: none;
 }
 
 /* 顶部网盘容量卡片 */

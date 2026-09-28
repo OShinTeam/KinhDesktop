@@ -60,3 +60,45 @@ html {
   width: 0;
   height: 0;
 }
+
+/* ==================== 触摸端 hover 残留修正 ====================
+   移动端 WebView 在 tap 后会合成 mouse 事件，并让 :hover 保持激活，
+   直到点击别处才转移 —— 表现为「按钮按下后不松开，点别处才恢复」。
+
+   项目内组件（Breadcrumb / FileList / HeaderBar）已各自用 `@media (hover: hover)` 处理；
+   Element Plus 的样式不能被修改，这里做统一兜底：
+   把「悬停态变量」指回正常态，这样 :hover 即使被粘住也没有任何视觉残留。
+
+   用双类名是为了提升特异性，压过 `.el-button--primary` 等类型类里的变量定义。 */
+@media (hover: none) {
+  /* 普通按钮：悬停色 = 正常色 */
+  .el-button.el-button {
+    --el-button-hover-text-color: var(--el-button-text-color);
+    --el-button-hover-bg-color: var(--el-button-bg-color);
+    --el-button-hover-border-color: var(--el-button-border-color);
+  }
+
+  /* 文字/链接按钮：本来就没有底色，悬停只改文字色 */
+  .el-button.el-button.is-text,
+  .el-button.el-button.is-link {
+    --el-button-hover-text-color: var(--el-button-text-color);
+    --el-button-hover-bg-color: transparent;
+    --el-button-hover-border-color: transparent;
+  }
+
+  /* 导航菜单项：消除 tap 后残留的悬停底色 */
+  .el-menu.el-menu {
+    --el-menu-hover-bg-color: transparent;
+  }
+
+  /* 单选框 / 复选框：边框的悬停变色同样会粘住。
+     注意变量名是 `xxx-input-border-color-hover`（hover 在最后），
+     不是 `xxx-hover-input-border-color` —— 后者不存在，写了会静默失效 */
+  .el-radio.el-radio {
+    --el-radio-input-border-color-hover: var(--el-radio-input-border-color);
+  }
+
+  .el-checkbox.el-checkbox {
+    --el-checkbox-input-border-color-hover: var(--el-checkbox-input-border-color);
+  }
+}

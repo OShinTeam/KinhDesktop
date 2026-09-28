@@ -8,9 +8,18 @@ import HeaderBar from './components/HeaderBar.vue'
 import LoginView from './views/LoginView.vue'
 import MainView from './views/MainView.vue'
 import { useI18n } from './composables/useI18n'
+import { initPlatform } from './composables/usePlatform'
+import { initViewport } from './composables/useViewport'
 
 // v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
 const { RestoreLogin, ResolveCloseAction } = App
+
+// 启动时异步获取平台信息：移动端据此隐藏窗口控制按钮等桌面专属 UI。
+// 不 await —— 取平台信息不应阻塞首屏，状态就绪后 Vue 会自动更新
+initPlatform()
+
+// 启动时初始化视口监听：竖屏走底部导航布局，横屏/桌面走侧栏布局
+initViewport()
 
 const { t } = useI18n()
 

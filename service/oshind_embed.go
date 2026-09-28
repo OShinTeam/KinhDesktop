@@ -5,16 +5,28 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
-// ensureOShinDLib 把内嵌的组件产物释放到 data 目录，返回可供加载的库文件路径。
+// oshindAndroidLibName Android 侧组件库名：随 APK 的 jniLibs 打包后，
+// 系统会把它解到应用私有库目录，dlopen 直接用库名即可
+const oshindAndroidLibName = "liboshind.so"
+
+// ensureOShinDLib 返回可供加载的组件库路径（或库名）。
 //
-// 组件版本与主程序绑定发版，不提供外部替换通道：data 目录中既有的同名文件在内容
-// 不一致时会被直接覆盖，避免用户放入的旧版本或异构库与当前主程序产生兼容性问题。
+// 桌面端：把内嵌的产物释放到 data 目录后返回其路径；
+// Android：返回库名交给平台解析。
 //
-// 调用方是 loadOShinD，需保证在 LoadLibrary 之前调用：
-// 库文件被进程加载后会处于占用状态，此处只在加载前落盘。
+// 注意：Android 目前**不会走到这里** —— loadOShinD 已在更上层短路，
+// 原因是同进程内两套 Go runtime（libwails + liboshind）会互相干扰导致概率性崩溃。
+// 此分支保留，供将来改用 OShinD 的 Go 包做静态集成时参考。
+//
+// 桌面端调用方是 loadOShinD，需保证在加载之前调用：库文件被进程加载后会处于占用状态。
 func ensureOShinDLib() (string, error) {
+	if runtime.GOOS == "android" {
+		return oshindAndroidLibName, nil
+	}
+
 	if len(oshindEmbedded) == 0 {
 		return "", fmt.Errorf("当前平台未内嵌 OShinD 组件产物")
 	}

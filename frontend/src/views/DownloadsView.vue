@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { Browser } from '@wailsio/runtime'
 import { formatBytes } from '../utils/format'
 import { useI18n } from '../composables/useI18n'
+import { usePlatform } from '../composables/usePlatform'
 import { Plus, CircleClose, VideoPause, VideoPlay, Delete } from '@element-plus/icons-vue'
 import { App } from '../../bindings/kinh-desktop/service'
 
@@ -18,7 +19,10 @@ const BrowserOpenURL = Browser.OpenURL
 
 const { t } = useI18n()
 
-// OShinD 组件是否可用：不存在时显示安装引导，存在时显示任务列表 + 新建任务
+// 移动端（Android / iOS）暂不支持下载组件，不可用提示需与桌面端区分
+const { isMobile } = usePlatform()
+
+// OShinD 组件是否可用：不可用时显示说明，可用时显示任务列表 + 新建任务
 const oshindInstalled = ref(false)
 const oshindVersion = ref('')
 const oshindRepoURL = ref('')
@@ -431,17 +435,18 @@ onUnmounted(stopPolling)
       </el-button>
     </header>
 
-    <!-- 组件未安装：安装引导 -->
+    <!-- 组件不可用：组件已随应用内嵌，不存在「手动下载安装」路径，按平台只给说明 -->
     <div v-if="!oshindInstalled" class="install-guide">
-      <el-empty :description="t('oshind_not_installed', '下载组件未安装')">
+      <el-empty :description="t('oshind_unavailable', '下载组件不可用')">
         <div class="install-steps">
-          <p class="install-intro">{{ t('oshind_install_intro', 'OShinD 是跨平台多线程下载引擎，安装后即可在应用内管理下载任务。') }}</p>
-          <ol class="install-list">
-            <li>{{ t('oshind_install_step1', '前往 OShinD Releases 页面，下载 oshind-windows-amd64.dll') }}</li>
-            <li>{{ t('oshind_install_step2', '将下载的组件重命名为 oshind.dll') }}</li>
-            <li>{{ t('oshind_install_step3', '放入程序所在目录的 data 文件夹，重启应用') }}</li>
-          </ol>
-          <el-button type="primary" @click="openRepoPage">{{ t('oshind_go_releases', '前往下载') }}</el-button>
+          <p class="install-intro">
+            {{
+              isMobile
+                ? t('oshind_unsupported_mobile', '当前平台暂不支持下载功能，文件浏览与管理仍可正常使用。')
+                : t('oshind_load_failed', '下载组件未能加载，可能是安装不完整。建议重新安装应用后重试。')
+            }}
+          </p>
+          <el-button v-if="!isMobile" @click="openRepoPage">{{ t('oshind_about', '了解 OShinD') }}</el-button>
         </div>
       </el-empty>
     </div>

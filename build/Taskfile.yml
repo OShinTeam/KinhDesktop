@@ -11,7 +11,7 @@ tasks:
       - go mod tidy
 
   fetch:oshind:
-    summary: 按目标平台拉取 OShinD 组件产物到 service/oshindlib/。动态库不入库，编译前必须就位
+    summary: 按目标平台拉取 OShinD 组件产物（桌面端入 embed 目录，Android 入 APK 的 jniLibs）。动态库不入库，编译前必须就位
     run: once
     vars:
       # 目标平台跟随构建目标：交叉编译时 GOOS/GOARCH 由外部传入，未指定则回落宿主平台。
@@ -20,25 +20,30 @@ tasks:
         sh: echo "${GOOS:-$(go env GOOS)}"
       TARGET_ARCH:
         sh: echo "${GOARCH:-$(go env GOARCH)}"
-      OSHIND_LIB_DIR: ../service/oshindlib
       # OShinD Releases 的 asset 命名：Windows 无 lib 前缀，其余平台带 lib 前缀
       OSHIND_PREFIX: '{{if eq .TARGET_OS "windows"}}oshind{{else}}liboshind{{end}}'
       OSHIND_EXT: '{{if eq .TARGET_OS "windows"}}dll{{else if eq .TARGET_OS "darwin"}}dylib{{else}}so{{end}}'
-      OSHIND_ASSET: '{{.OSHIND_PREFIX}}-{{.TARGET_OS}}-{{.TARGET_ARCH}}.{{.OSHIND_EXT}}'
+      OSHIND_REMOTE_ASSET: '{{.OSHIND_PREFIX}}-{{.TARGET_OS}}-{{.TARGET_ARCH}}.{{.OSHIND_EXT}}'
       OSHIND_RELEASE: '{{.OSHIND_RELEASE | default "latest"}}'
-      OSHIND_URL: 'https://github.com/OshinTeam/OShinD/releases/{{.OSHIND_RELEASE}}/download/{{.OSHIND_ASSET}}'
+      OSHIND_URL: 'https://github.com/OshinTeam/OShinD/releases/{{.OSHIND_RELEASE}}/download/{{.OSHIND_REMOTE_ASSET}}'
+      # 落地位置分两类：
+      #   Android —— 必须随 APK 的 jniLibs 打包，且命名为 lib*.so 供 dlopen 解析；
+      #              不能运行时释放到可写目录再加载（SELinux / W^X 会拒绝）
+      #   桌面端 —— 放进 embed 目录，编译期由 //go:embed 内嵌进主程序
+      OSHIND_LOCAL_DIR: '{{if eq .TARGET_OS "android"}}../build/android/app/src/main/jniLibs/{{if eq .TARGET_ARCH "arm64"}}arm64-v8a{{else}}x86_64{{end}}{{else}}../service/oshindlib{{end}}'
+      OSHIND_LOCAL_NAME: '{{if eq .TARGET_OS "android"}}liboshind.so{{else}}{{.OSHIND_REMOTE_ASSET}}{{end}}'
     cmds:
       # 跳过判断放在脚本内而非 task 的 status：status 是裸字符串命令，
       # 在 Windows 上可能落到 cmd 执行（test 不可用），会退化成每次构建都重新下载 8MB
       - |
         set -e
-        ASSET="{{.OSHIND_LIB_DIR}}/{{.OSHIND_ASSET}}"
+        ASSET="{{.OSHIND_LOCAL_DIR}}/{{.OSHIND_LOCAL_NAME}}"
         if [ -f "$ASSET" ] && [ "{{.CLI_FORCE}}" != "true" ]; then
-          echo "OShinD 组件已存在，跳过下载: {{.OSHIND_ASSET}}"
+          echo "OShinD 组件已存在，跳过下载: {{.OSHIND_LOCAL_NAME}}"
           exit 0
         fi
 
-        mkdir -p {{.OSHIND_LIB_DIR}}
+        mkdir -p {{.OSHIND_LOCAL_DIR}}
         curl -fsSL --retry 3 --retry-delay 2 -o "$ASSET" "{{.OSHIND_URL}}"
 
         # 至少挡住 404 页面这类「下载成功但内容不对」的情况；

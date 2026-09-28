@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 	"unsafe"
 
@@ -35,18 +35,18 @@ const (
 
 var (
 	oshindMu         sync.Mutex
-	oshindLib        *syscall.DLL  // 已加载的动态库（nil 为未加载）
-	oshindLoadErr    error         // 加载失败原因（区别于未安装）
-	oshindLoaded     bool          // 是否已尝试加载（含失败，避免重复尝试）
-	oshindVersion    string        // 组件版本（加载成功后从 OShinD_Version 读取）
-	oshindProcVer    *syscall.Proc // OShinD_Version 过程句柄
-	oshindProcDl     *syscall.Proc // OShinD_Download 过程句柄
-	oshindProcStat   *syscall.Proc // OShinD_GetTaskStatus 过程句柄
-	oshindProcFree   *syscall.Proc // OShinD_FreeString 过程句柄
-	oshindProcCancel *syscall.Proc // OShinD_CancelTask 过程句柄
-	oshindProcPause  *syscall.Proc // OShinD_PauseTask 过程句柄
-	oshindProcResume *syscall.Proc // OShinD_ResumeTask 过程句柄
-	oshindProcRemove *syscall.Proc // OShinD_RemoveTask 过程句柄
+	oshindLib        *oshindLibHandle // 已加载的动态库（nil 为未加载）
+	oshindLoadErr    error            // 加载失败原因（区别于未安装）
+	oshindLoaded     bool             // 是否已尝试加载（含失败，避免重复尝试）
+	oshindVersion    string           // 组件版本（加载成功后从 OShinD_Version 读取）
+	oshindProcVer    *oshindProc      // OShinD_Version 过程句柄
+	oshindProcDl     *oshindProc      // OShinD_Download 过程句柄
+	oshindProcStat   *oshindProc      // OShinD_GetTaskStatus 过程句柄
+	oshindProcFree   *oshindProc      // OShinD_FreeString 过程句柄
+	oshindProcCancel *oshindProc      // OShinD_CancelTask 过程句柄
+	oshindProcPause  *oshindProc      // OShinD_PauseTask 过程句柄
+	oshindProcResume *oshindProc      // OShinD_ResumeTask 过程句柄
+	oshindProcRemove *oshindProc      // OShinD_RemoveTask 过程句柄
 )
 
 // oshindLibPath 组件动态库完整路径
@@ -63,6 +63,22 @@ func loadOShinD() (loaded bool, version string, loadErr error) {
 	}
 	oshindLoaded = true
 
+	// Android 暂不加载组件。
+	//
+	// 原因：libwails 与 liboshind 都是由 Go 编译出的 c-shared 库，同一进程内会存在
+	// 两套 Go runtime —— 各自注册 signal handler、各自维护 cgocallback 的 goroutine 记录，
+	// 彼此干扰，表现为**概率性崩溃**（实测崩溃点位于组件内部的 OShinD_Version，
+	// 栈中出现 `unexpected return pc for runtime.cgocallback`）。
+	// 该问题无法在调用侧规避：跨 .so 的 Go panic 会直接 abort 进程，recover 拦不住。
+	//
+	// 因此在本平台直接判定「组件不可用」，只降级为下载功能不可用，
+	// 不影响登录、文件浏览与设置。
+	// 后续计划：改为直接引入 OShinD 的 Go 包（静态链接，单 runtime），届时可放开此限制。
+	if runtime.GOOS == "android" {
+		global.Log.Info("Android 平台暂不加载 OShinD 组件，下载功能不可用")
+		return false, oshindNotInstalled, nil
+	}
+
 	libPath, err := ensureOShinDLib()
 	if err != nil {
 		// 内嵌产物缺失或释放失败均视为「组件不可用」，不影响主程序运行
@@ -70,16 +86,16 @@ func loadOShinD() (loaded bool, version string, loadErr error) {
 		return false, oshindNotInstalled, nil
 	}
 
-	lib, err := syscall.LoadLibrary(libPath)
+	lib, err := oshindOpenLib(libPath)
 	if err != nil {
 		oshindLoadErr = fmt.Errorf("加载动态库失败: %w", err)
 		global.Log.Warnf("OShinD %v", oshindLoadErr)
 		return false, oshindNotInstalled, oshindLoadErr
 	}
-	oshindLib = &syscall.DLL{Name: libPath, Handle: lib}
+	oshindLib = lib
 
 	// 逐一解析所需过程，缺失任一核心接口即判定不兼容
-	required := map[string]**syscall.Proc{
+	required := map[string]**oshindProc{
 		"OShinD_Version":       &oshindProcVer,
 		"OShinD_Download":      &oshindProcDl,
 		"OShinD_GetTaskStatus": &oshindProcStat,

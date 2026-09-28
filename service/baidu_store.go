@@ -10,6 +10,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -28,11 +29,37 @@ import (
 // 盐文件首次使用时生成，与凭证同目录、均不随程序分发。退出登录时全部清除。
 
 const (
-	baiduDataDir        = "data"
 	baiduCredentialFile = "credential.dat"
 	baiduKeyFile        = "key.bin"
 	keySaltSize         = 32
 )
+
+// baiduDataDir 应用数据目录。
+//
+// 桌面端为程序目录下的 data/（相对路径，相对 cwd 即程序所在目录）。
+//
+// Android 必须换成应用私有目录：Android 进程的 cwd 是 /，相对路径 "data" 会解析成
+// 只读的 /data，目录创建直接失败 —— 表现为"登录状态不被保存"。
+var baiduDataDir = defaultDataDir()
+
+func defaultDataDir() string {
+	if runtime.GOOS != "android" {
+		return "data"
+	}
+	// 包名从 /proc/self/cmdline 读取（Android 上该文件首段为进程名，即 applicationId），
+	// 避免硬编码；读取失败时回落到本项目的固定值
+	const (
+		androidDataRoot = "/data/data"
+		fallbackPackage = "com.oshinteam.kinhdesktop"
+	)
+	pkg := fallbackPackage
+	if raw, err := os.ReadFile("/proc/self/cmdline"); err == nil {
+		if name, _, ok := strings.Cut(string(raw), "\x00"); ok && name != "" {
+			pkg = name
+		}
+	}
+	return filepath.Join(androidDataRoot, pkg, "files", "data")
+}
 
 // loadedCredKey 缓存派生密钥，credKeyMu 保护并发读写（登录/登出在不同 goroutine 触发）
 var (
@@ -47,12 +74,33 @@ type baiduSavedCredential struct {
 }
 
 // machineFingerprint 采集机器指纹（主机名 + 主网卡 MAC），跨平台无额外依赖
-func machineFingerprint() string {
+// machineFingerprint 计算机器指纹：主机名 + 真实网卡 MAC。
+//
+// 用于绑定加密密钥，使密文离开本机后无法解密。
+//
+// Android 上不取网卡 MAC：net.Interfaces() 依赖 netlink，在移动端沙箱下不可靠
+// （解析异常响应时可能直接 panic，`err == nil` 这种写法拦不住 panic），
+// 而移动端应用数据本就处于沙箱内，绑定整机 MAC 的收益有限。
+// 另加 recover 兜底：任何平台取网卡信息异常都降级为主机名，不阻断登录流程。
+func machineFingerprint() (fp string) {
 	host, err := os.Hostname()
 	if err != nil {
-		global.Log.Warnf("获取主机名失败，指纹降级为仅 MAC: %v", err)
+		global.Log.Warnf("获取主机名失败: %v", err)
 		host = ""
 	}
+
+	// Android：仅用主机名参与指纹，跳过 net.Interfaces()
+	if runtime.GOOS == "android" {
+		return host
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			global.Log.Warnf("获取网卡信息异常，指纹降级为主机名: %v", r)
+			fp = host
+		}
+	}()
+
 	var macs []string
 	if interfaces, err := net.Interfaces(); err == nil {
 		for _, iface := range interfaces {

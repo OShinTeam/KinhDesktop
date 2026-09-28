@@ -1,23 +1,25 @@
 <script setup>
 import { ref } from 'vue'
 import { Minus, FullScreen, Close } from '@element-plus/icons-vue'
-import { System } from '@wailsio/runtime'
 import { App } from '../../bindings/kinh-desktop/service'
+import { usePlatform } from '../composables/usePlatform'
 import appIcon from '../assets/appicon.png'
 
 // v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
 const { WindowMinimise, WindowToggleMaximise, WindowClose } = App
 
 // 移动端（Android / iOS）没有窗口边框的概念：
-// 窗口控制按钮整块不渲染，标题栏拖拽与双击最大化也一并禁用
-const isMobile = System.IsMobile()
+// 窗口控制按钮整块不渲染，标题栏拖拽与双击最大化也一并禁用。
+// 平台信息由 App.vue 启动时异步初始化，此处只读状态（详见 usePlatform）
+const { isMobile } = usePlatform()
 
 // 版本号集中定义，与应用图标一起在顶栏展示
 const appVersion = ref('v0.1.0')
 
 // 双击标题栏最大化：移动端无此交互，避免双击缩放时误触发
 function onTitleBarDblClick() {
-  if (!isMobile) {
+  // script 中访问 ref 需 .value（模板里则由 Vue 自动解包）
+  if (!isMobile.value) {
     WindowToggleMaximise()
   }
 }
@@ -131,17 +133,22 @@ function onTitleBarDblClick() {
   transition: all 0.2s ease;
 }
 
-.window-btn:hover {
-  background-color: rgba(0, 0, 0, 0.08);
+/* 悬停效果仅在支持悬停的设备生效。
+   触摸设备（含带触屏的 Windows 设备）上 :hover 会粘住，点过的按钮保持高亮不恢复。 */
+@media (hover: hover) {
+  .window-btn:hover {
+    background-color: rgba(0, 0, 0, 0.08);
+  }
+
+  .close-btn:hover {
+    background-color: #f56c6c;
+    color: #fff;
+  }
 }
 
+/* 按下反馈：触摸设备靠 :active，抬手即解除 */
 .window-btn:active {
   background-color: rgba(0, 0, 0, 0.12);
-}
-
-.close-btn:hover {
-  background-color: #f56c6c;
-  color: #fff;
 }
 
 .close-btn:active {

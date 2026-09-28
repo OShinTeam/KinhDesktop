@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Folder, RefreshRight, Link } from '@element-plus/icons-vue'
 import { Browser } from '@wailsio/runtime'
 import { useI18n } from '../composables/useI18n'
+import { usePlatform } from '../composables/usePlatform'
 import { App } from '../../bindings/kinh-desktop/service'
 
 // v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
@@ -11,6 +12,14 @@ const {
   GetSettings, SaveSettings, GetALLLang, OpenFolderSelect,
   GetAppVersion, CheckUpdate, GetOShinDVersion, CheckOShinDUpdate,
 } = App
+
+// 移动端（Android / iOS）需隐藏若干桌面专属设置项：窗口关闭行为、目录选择等
+const { isMobile } = usePlatform()
+
+// 退出登录统一交给 MainView 处理（含确认弹窗与凭证清理），此处只对外转发。
+// 之所以在设置页也提供入口：竖屏布局下侧栏会转为底部导航，其中的账户卡片被隐藏，
+// 若只保留侧栏那个按钮，竖屏用户将无法退出登录
+const emit = defineEmits(['logout'])
 
 // v2 的 runtime.BrowserOpenURL 在 v3 中对应 @wailsio/runtime 的 Browser.OpenURL
 const BrowserOpenURL = Browser.OpenURL
@@ -260,7 +269,8 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
           </el-select>
         </div>
 
-        <div class="setting-row">
+        <!-- 窗口关闭行为：移动端没有窗口边框，该设置无意义 -->
+        <div v-if="!isMobile" class="setting-row">
           <div class="setting-info">
             <div class="setting-label">{{ t('settings_close_action', '点击关闭后的操作') }}</div>
             <div class="setting-desc">{{ t('settings_close_action_desc', '') }}</div>
@@ -290,8 +300,8 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
           <span class="card-desc">{{ t('settings_download_desc', '') }}</span>
         </div>
 
-        <!-- 下载设置：目录 / UA，控件均为「无图标输入框 + 带图标按钮」统一结构 -->
-        <div class="setting-row">
+        <!-- 下载目录：移动端没有可用的目录选择器（系统只提供 SAF，尚未接入），隐藏该项 -->
+        <div v-if="!isMobile" class="setting-row">
           <div class="setting-info">
             <div class="setting-label">{{ t('settings_dir', '下载目录') }}</div>
             <div class="setting-desc">{{ t('settings_dir_desc', '') }}</div>
@@ -463,6 +473,20 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
         </div>
         <div v-else-if="updateResult?.success && !updateResult.has_update" class="update-panel update-ok">
           {{ t('update_latest', '当前已是最新版本') }}
+        </div>
+
+        <!-- 退出登录：与侧栏账户卡片同源，全平台保留此入口
+             （竖屏下侧栏转为底部导航，账户卡片被隐藏，此处是唯一出口） -->
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">{{ t('btn_logout', '退出登录') }}</div>
+            <div class="setting-desc">{{ t('settings_logout_desc', '退出当前账号并清除本地保存的登录信息。') }}</div>
+          </div>
+          <div class="setting-control">
+            <el-button type="danger" plain @click="emit('logout')">
+              {{ t('btn_logout', '退出登录') }}
+            </el-button>
+          </div>
         </div>
       </div>
     </div>

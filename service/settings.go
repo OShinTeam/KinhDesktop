@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 
@@ -82,8 +83,20 @@ func settingsFilePath() string {
 	return filepath.Join(baiduDataDir, settingsFile)
 }
 
+// androidDownloadDir Android 外部存储的公共下载目录。
+// 之所以硬编码：Go 侧拿不到 Android 的 Environment API，主存储固定挂载在
+// /storage/emulated/0；多用户或外置 SD 卡场景需另行适配。
+const androidDownloadDir = "/storage/emulated/0/Download"
+
 // defaultDownloadDir 默认下载目录：用户下载文件夹，取不到回退到当前目录
 func defaultDownloadDir() string {
+	// Android 的文件系统布局与桌面不同，没有「用户主目录/Downloads」这一层
+	// （os.UserHomeDir 在 Android 上取不到桌面语义的目录），直接用公共下载目录。
+	// 写入该路径需要「所有文件访问」权限，见 MainActivity.requestStoragePermission
+	if runtime.GOOS == "android" {
+		return androidDownloadDir
+	}
+
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
 		return "."
