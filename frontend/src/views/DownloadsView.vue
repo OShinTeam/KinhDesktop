@@ -1,11 +1,20 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { GetDownloadTasks, CancelDownloadTask, PauseDownloadTask, ResumeDownloadTask, RemoveDownloadTask, GetSettings, GetOShinDVersion, SubmitDownloadWithOptions } from '../../wailsjs/go/service/App'
-import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
+import { Browser } from '@wailsio/runtime'
 import { formatBytes } from '../utils/format'
 import { useI18n } from '../composables/useI18n'
 import { Plus, CircleClose, VideoPause, VideoPlay, Delete } from '@element-plus/icons-vue'
+import { App } from '../../bindings/kinh-desktop/service'
+
+// v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
+const {
+  GetDownloadTasks, CancelDownloadTask, PauseDownloadTask, ResumeDownloadTask,
+  RemoveDownloadTask, GetSettings, GetOShinDVersion, SubmitDownloadWithOptions,
+} = App
+
+// v2 的 runtime.BrowserOpenURL 在 v3 中对应 @wailsio/runtime 的 Browser.OpenURL
+const BrowserOpenURL = Browser.OpenURL
 
 const { t } = useI18n()
 

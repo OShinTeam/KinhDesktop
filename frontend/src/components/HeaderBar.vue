@@ -1,8 +1,11 @@
 <script setup>
 import { ref } from 'vue'
 import { Minus, FullScreen, Close } from '@element-plus/icons-vue'
-import { WindowMinimise, WindowToggleMaximise, WindowClose } from '../../wailsjs/go/service/App'
+import { App } from '../../bindings/kinh-desktop/service'
 import appIcon from '../assets/appicon.png'
+
+// v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
+const { WindowMinimise, WindowToggleMaximise, WindowClose } = App
 
 // 版本号集中定义，与应用图标一起在顶栏展示
 const appVersion = ref('v0.1.0')

@@ -1,5 +1,8 @@
 import { ref, onMounted } from 'vue'
-import { GetLangTextMap } from '../../wailsjs/go/service/App'
+import { App } from '../../bindings/kinh-desktop/service'
+
+// v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
+const { GetLangTextMap } = App
 
 // 全局单例状态
 const textMap = ref({})

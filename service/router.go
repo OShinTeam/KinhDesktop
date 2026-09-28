@@ -1,7 +1,6 @@
 package service
 
 import (
-	"context"
 	"os"
 	"path/filepath"
 	goruntime "runtime"
@@ -12,19 +11,18 @@ import (
 	"kinh-desktop/global"
 
 	"github.com/sirupsen/logrus"
-	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"github.com/wailsapp/wails/v3/pkg/application"
 )
 
+// App 前端可调用的服务。
+// v3 的 service 不再需要保存 context：窗口、对话框、事件都直接挂在 app 实例上，
+// 因此这里持有 *application.App 引用，运行期由 main 通过构造函数注入。
 type App struct {
-	ctx context.Context
+	app *application.App
 }
 
-func NewApp() *App {
-	return &App{}
-}
-
-func (a *App) Startup(ctx context.Context) {
-	a.ctx = ctx
+func NewApp(app *application.App) *App {
+	return &App{app: app}
 }
 
 func (a *App) GetLangTextMap() map[string]string {
@@ -118,16 +116,20 @@ func (a *App) GetLogLevel() string {
 	return strings.ToUpper(global.Log.GetLevel().String())
 }
 
+// ==================== 窗口控制 ====================
+// v3 用 window 对象的方法替代 v2 的 runtime.WindowXxx(ctx, ...)：
+// 多窗口下每个窗口是独立对象，Current() 取当前活动窗口（本项目单窗口）
+
 func (a *App) WindowMinimise() {
-	runtime.WindowMinimise(a.ctx)
+	a.app.Window.Current().Minimise()
 }
 
 func (a *App) WindowToggleMaximise() {
-	runtime.WindowToggleMaximise(a.ctx)
+	a.app.Window.Current().ToggleMaximise()
 }
 
 func (a *App) WindowClose() {
-	runtime.Quit(a.ctx)
+	a.app.Quit()
 }
 
 func (a *App) GetSystemInfo() SystemInfo {
@@ -148,15 +150,18 @@ func (a *App) GetProcessName() string {
 	return global.GetProcessName()
 }
 
+// ==================== 原生对话框 ====================
+// v3 的对话框改为链式 Builder：配置后 PromptForSingleSelection() 弹出并返回选中路径
+
 func (a *App) OpenFileSelect() string {
-	file, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+	file, err := a.app.Dialog.OpenFileWithOptions(&application.OpenFileDialogOptions{
 		Title: "选择文件",
-		Filters: []runtime.FileFilter{
+		Filters: []application.FileFilter{
 			{DisplayName: "所有文件", Pattern: "*.*"},
 			{DisplayName: "文本文件", Pattern: "*.txt"},
 			{DisplayName: "JSON 文件", Pattern: "*.json"},
 		},
-	})
+	}).PromptForSingleSelection()
 	if err != nil {
 		global.Log.Warnf("打开文件对话框失败: %v", err)
 		return ""
@@ -165,9 +170,13 @@ func (a *App) OpenFileSelect() string {
 }
 
 func (a *App) OpenFolderSelect() string {
-	folder, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
-		Title: "选择目录",
-	})
+	// v3 没有独立的目录选择对话框；用文件对话框并把可选目标切到目录。
+	// CanChooseFiles 显式置 false 是声明意图：v3 在两者都为 false 时会兜底成选文件
+	folder, err := a.app.Dialog.OpenFileWithOptions(&application.OpenFileDialogOptions{
+		Title:                "选择目录",
+		CanChooseDirectories: true,
+		CanChooseFiles:       false,
+	}).PromptForSingleSelection()
 	if err != nil {
 		global.Log.Warnf("打开目录对话框失败: %v", err)
 		return ""
@@ -176,13 +185,13 @@ func (a *App) OpenFolderSelect() string {
 }
 
 func (a *App) SaveFileSelect() string {
-	file, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
+	file, err := a.app.Dialog.SaveFileWithOptions(&application.SaveFileDialogOptions{
 		Title: "保存文件",
-		Filters: []runtime.FileFilter{
+		Filters: []application.FileFilter{
 			{DisplayName: "文本文件", Pattern: "*.txt"},
 			{DisplayName: "JSON 文件", Pattern: "*.json"},
 		},
-	})
+	}).PromptForSingleSelection()
 	if err != nil {
 		global.Log.Warnf("打开保存对话框失败: %v", err)
 		return ""
@@ -243,7 +252,7 @@ func (a *App) WriteFileContent(path string, content string) bool {
 }
 
 func (a *App) Notify(title string, message string) {
-	runtime.EventsEmit(a.ctx, "notification", map[string]string{
+	a.app.Event.Emit("notification", map[string]string{
 		"title":   title,
 		"message": message,
 	})

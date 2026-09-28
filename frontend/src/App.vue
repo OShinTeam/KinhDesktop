@@ -1,11 +1,14 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
-import { RestoreLogin } from '../wailsjs/go/service/App'
+import { App } from '../bindings/kinh-desktop/service'
 import HeaderBar from './components/HeaderBar.vue'
 import LoginView from './views/LoginView.vue'
 import MainView from './views/MainView.vue'
 import { useI18n } from './composables/useI18n'
+
+// v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
+const { RestoreLogin } = App
 
 const { t } = useI18n()
 

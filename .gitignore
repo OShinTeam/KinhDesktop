@@ -72,3 +72,9 @@ coverage
 # APP Data
 
 data
+
+# Wails v3 build artifacts
+.task
+/bin
+build/linux/appimage/build
+build/windows/nsis/MicrosoftEdgeWebview2Setup.exe

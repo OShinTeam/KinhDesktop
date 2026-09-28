@@ -5,11 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build:dev": "vite build --minify false --mode development",
+    "build": "vite build --mode production",
     "preview": "vite preview"
   },
   "dependencies": {
-    "@wailsio/runtime": "^3.0.0-alpha.66",
+    "@wailsio/runtime": "^3.0.0-beta.23",
     "anymatch": "^3.1.3",
     "element-plus": "^2.9.10",
     "vue": "^3.2.37"

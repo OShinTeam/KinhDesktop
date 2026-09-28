@@ -1,11 +1,12 @@
 <script setup>
 import { ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
-import {
-  GetBaiduQR, PollBaiduQR, BaiduQRLogin, LoginWithCookie
-} from '../../wailsjs/go/service/App'
 import { ElMessage } from 'element-plus'
 import { RefreshRight, SuccessFilled } from '@element-plus/icons-vue'
 import { useI18n } from '../composables/useI18n'
+import { App } from '../../bindings/kinh-desktop/service'
+
+// v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
+const { GetBaiduQR, PollBaiduQR, BaiduQRLogin, LoginWithCookie } = App
 
 const { t } = useI18n()
 

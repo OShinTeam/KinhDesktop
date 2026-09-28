@@ -1,8 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { GetBaiduFileList, GetBaiduQuota, BaiduLogout, GetBaiduDownloadLink, GetBaiduDownloadLinkRemote, GetSettings, GetOShinDVersion, SubmitDownload } from '../../wailsjs/go/service/App'
-import { ClipboardSetText } from '../../wailsjs/runtime/runtime'
+import { Clipboard } from '@wailsio/runtime'
 import FileList from '../components/FileList.vue'
 import Breadcrumb from '../components/Breadcrumb.vue'
 import SettingsView from './SettingsView.vue'
@@ -12,6 +11,23 @@ import { useI18n } from '../composables/useI18n'
 import {
   FolderOpened, Download, Setting, Refresh, SwitchButton
 } from '@element-plus/icons-vue'
+import { App } from '../../bindings/kinh-desktop/service'
+
+// v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
+const {
+  GetBaiduFileList, GetBaiduQuota, BaiduLogout, GetBaiduDownloadLink,
+  GetBaiduDownloadLinkRemote, GetSettings, GetOShinDVersion, SubmitDownload,
+} = App
+
+// v2 的 ClipboardSetText 返回布尔，v3 的 Clipboard.SetText 失败时抛错，这里还原成原来的语义
+async function ClipboardSetText(text) {
+  try {
+    await Clipboard.SetText(text)
+    return true
+  } catch {
+    return false
+  }
+}
 
 const props = defineProps({
   credential: { type: Object, required: true }

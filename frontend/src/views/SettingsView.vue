@@ -2,12 +2,18 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Folder, RefreshRight, Link } from '@element-plus/icons-vue'
-import {
-  GetSettings, SaveSettings, GetALLLang, OpenFolderSelect,
-  GetAppVersion, CheckUpdate, GetOShinDVersion, CheckOShinDUpdate
-} from '../../wailsjs/go/service/App'
-import { BrowserOpenURL } from '../../wailsjs/runtime/runtime'
+import { Browser } from '@wailsio/runtime'
 import { useI18n } from '../composables/useI18n'
+import { App } from '../../bindings/kinh-desktop/service'
+
+// v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
+const {
+  GetSettings, SaveSettings, GetALLLang, OpenFolderSelect,
+  GetAppVersion, CheckUpdate, GetOShinDVersion, CheckOShinDUpdate,
+} = App
+
+// v2 的 runtime.BrowserOpenURL 在 v3 中对应 @wailsio/runtime 的 Browser.OpenURL
+const BrowserOpenURL = Browser.OpenURL
 
 const { t, loadTextMap } = useI18n()
 
