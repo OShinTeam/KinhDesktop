@@ -206,6 +206,15 @@ export function RemoveDownloadTask(taskID: string, deleteFiles: boolean): $Cance
 }
 
 /**
+ * ResolveCloseAction 前端询问完成后回传用户选择。
+ * remember 为 true 时把选择写入设置，此后关闭不再询问。
+ * action 取值：tray（隐藏到托盘）/ exit（退出）/ cancel（取消本次关闭）
+ */
+export function ResolveCloseAction(action: string, remember: boolean): $CancellablePromise<void> {
+    return $Call.ByID(3686731421, action, remember);
+}
+
+/**
  * RestoreLogin 使用本地保存的登录信息自动登录（含 STOKEN 失效时刷新一次重试）
  */
 export function RestoreLogin(): $CancellablePromise<$models.BaiduLoginResult | null> {
@@ -227,11 +236,6 @@ export function SaveFileSelect(): $CancellablePromise<string> {
 
 /**
  * SaveSettings 保存设置并立即生效，返回错误信息（空串为成功）
- * 
- * TODO(托盘功能实现时)：close_action 的 tray 选项当前仅存值未生效——
- *  1. main.go 需注册系统托盘（wails v2 无内置托盘，需引入第三方 systray 类库）
- *  2. WindowClose 按设置分流：exit 直接退出，tray 隐藏窗口到托盘
- *  3. 托盘菜单：显示主窗口 / 退出，并处理二次启动唤起
  */
 export function SaveSettings(settings: $models.AppSettings): $CancellablePromise<string> {
     return $Call.ByID(2689818911, settings);
@@ -260,6 +264,11 @@ export function SubmitDownloadWithOptions(opts: $models.DownloadTaskOptions): $C
     return $Call.ByID(3968366703, opts);
 }
 
+/**
+ * WindowClose 请求关闭窗口。
+ * 不直接退出，而是走窗口关闭流程交由 close.go 的 hook 按设置分流
+ * （直接退出 / 隐藏到托盘 / 询问用户），保证前端按钮与系统关闭走同一条路径
+ */
 export function WindowClose(): $CancellablePromise<void> {
     return $Call.ByID(595349813);
 }

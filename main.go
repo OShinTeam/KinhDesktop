@@ -14,6 +14,18 @@ var assets embed.FS
 //go:embed lang/*
 var langFS embed.FS
 
+// 托盘图标：Windows 托盘要求 ICO 格式，直接复用构建产物的应用图标
+//
+//go:embed build/windows/icon.ico
+var trayIcon []byte
+
+// singleInstanceID 单实例锁标识，与 build/config.yml 的 productIdentifier 保持一致
+const singleInstanceID = "com.oshinteam.kinhdesktop"
+
+// mainWindow 主窗口引用。托盘唤回与二次启动唤起都要用到，
+// 而回调在闭包与包级函数中触发，故提升为包级变量（生命周期与进程一致）
+var mainWindow *application.WebviewWindow
+
 func main() {
 	global.LangFS = langFS
 
@@ -40,12 +52,19 @@ func main() {
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
+		// 单实例：窗口收进托盘后再次启动 exe，不再开新进程，而是唤起已有窗口
+		SingleInstance: &application.SingleInstanceOptions{
+			UniqueID: singleInstanceID,
+			OnSecondInstanceLaunch: func(application.SecondInstanceData) {
+				focusMainWindow()
+			},
+		},
 	})
 
 	// 服务的方法需要操作窗口/对话框/事件，依赖 app 实例，故在应用创建后注册
 	app.RegisterService(application.NewService(service.NewApp(app)))
 
-	app.Window.NewWithOptions(application.WebviewWindowOptions{
+	mainWindow = app.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:  appName,
 		Width:  1024,
 		Height: 768,
@@ -59,7 +78,52 @@ func main() {
 		URL:              "/",
 	})
 
+	setupTray(app, appName)
+
+	// 关闭行为按设置分流：直接退出 / 隐藏到托盘 / 询问用户
+	service.RegisterCloseHandler(app, mainWindow)
+
 	if err := app.Run(); err != nil {
 		println("Error:", err.Error())
 	}
+}
+
+// focusMainWindow 把主窗口从隐藏或最小化状态唤回前台。
+// 托盘菜单、托盘单击、二次启动三处共用，保证唤起行为一致。
+// 二次启动可能在窗口创建前被触发，故做 nil 保护
+func focusMainWindow() {
+	if mainWindow == nil {
+		return
+	}
+	mainWindow.Restore()
+	mainWindow.Show()
+	mainWindow.Focus()
+}
+
+// setupTray 注册系统托盘，提供「显示主窗口 / 退出」入口。
+// 关闭行为选择「最小化到托盘」时窗口只是隐藏（Hide 不等同于关闭），需由此唤回
+func setupTray(app *application.App, appName string) {
+	textMap := global.GetLangTextMap()
+	label := func(key, fallback string) string {
+		if v := textMap[key]; v != "" {
+			return v
+		}
+		return fallback
+	}
+
+	tray := app.SystemTray.New()
+	tray.SetIcon(trayIcon)
+	tray.SetTooltip(appName)
+
+	menu := app.NewMenu()
+	menu.Add(label("tray_show_window", "显示主窗口")).OnClick(func(*application.Context) {
+		focusMainWindow()
+	})
+	menu.Add(label("tray_exit", "退出")).OnClick(func(*application.Context) {
+		app.Quit()
+	})
+	tray.SetMenu(menu)
+
+	// 单击托盘图标直接唤回主窗口（Windows 下的习惯交互）
+	tray.OnClick(focusMainWindow)
 }

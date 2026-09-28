@@ -95,6 +95,7 @@ const logLevelOptions = [
   { value: 'error', label: 'ERROR' },
 ]
 const closeActionOptions = computed(() => [
+  { value: 'ask', label: t('settings_close_ask', '每次询问') },
   { value: 'exit', label: t('settings_close_exit', '退出程序') },
   { value: 'tray', label: t('settings_close_tray', '最小化到托盘') },
 ])

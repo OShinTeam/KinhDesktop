@@ -22,8 +22,9 @@ const settingsFile = "settings.json"
 
 // 关闭行为常量（close_action 字段取值）
 const (
+	CloseActionAsk  = "ask"  // 未设置时问用户：每次关闭都弹窗确认
 	CloseActionExit = "exit" // 直接退出
-	CloseActionTray = "tray" // 最小化到托盘（托盘功能预留，暂同退出）
+	CloseActionTray = "tray" // 最小化到系统托盘
 )
 
 // AppSettings 应用设置结构，JSON 字段即落盘字段
@@ -56,7 +57,7 @@ const DefaultMaxRetries = 3
 func DefaultSettings() *AppSettings {
 	return &AppSettings{
 		Language:           "zh-CN",
-		CloseAction:        CloseActionExit,
+		CloseAction:        CloseActionAsk,
 		DownloadUserAgent:  DefaultUserAgent,
 		DownloadThreads:    4,
 		DownloadChunkKB:    DefaultChunkKB,
@@ -180,17 +181,22 @@ func normalizeLogLevel(level string) string {
 	}
 }
 
+// isValidCloseAction 校验关闭行为取值是否合法（ask / exit / tray）
+func isValidCloseAction(action string) bool {
+	switch action {
+	case CloseActionAsk, CloseActionExit, CloseActionTray:
+		return true
+	default:
+		return false
+	}
+}
+
 // GetSettings 返回当前设置副本（前端读取入口）
 func (a *App) GetSettings() AppSettings {
 	return *getSettings()
 }
 
 // SaveSettings 保存设置并立即生效，返回错误信息（空串为成功）
-//
-// TODO(托盘功能实现时)：close_action 的 tray 选项当前仅存值未生效——
-//  1. main.go 需注册系统托盘（wails v2 无内置托盘，需引入第三方 systray 类库）
-//  2. WindowClose 按设置分流：exit 直接退出，tray 隐藏窗口到托盘
-//  3. 托盘菜单：显示主窗口 / 退出，并处理二次启动唤起
 func (a *App) SaveSettings(settings AppSettings) string {
 	// 校验与规范化
 	settings.Language = strings.TrimSpace(settings.Language)
@@ -209,8 +215,9 @@ func (a *App) SaveSettings(settings AppSettings) string {
 		settings.DownloadUserAgent = DefaultUserAgent
 	}
 	settings.LogLevel = normalizeLogLevel(settings.LogLevel)
-	if settings.CloseAction != CloseActionTray {
-		settings.CloseAction = CloseActionExit
+	// 关闭行为：仅认 ask / exit / tray，非法值回落到「询问」
+	if !isValidCloseAction(settings.CloseAction) {
+		settings.CloseAction = CloseActionAsk
 	}
 
 	// 语言热切换

@@ -1,6 +1,8 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { Loading } from '@element-plus/icons-vue'
+import { ElMessageBox } from 'element-plus'
+import { Events } from '@wailsio/runtime'
 import { App } from '../bindings/kinh-desktop/service'
 import HeaderBar from './components/HeaderBar.vue'
 import LoginView from './views/LoginView.vue'
@@ -8,7 +10,7 @@ import MainView from './views/MainView.vue'
 import { useI18n } from './composables/useI18n'
 
 // v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
-const { RestoreLogin } = App
+const { RestoreLogin, ResolveCloseAction } = App
 
 const { t } = useI18n()
 
@@ -59,9 +61,43 @@ function handleKeyScroll(e) {
   el.scrollBy({ top: delta, behavior: 'smooth' })
 }
 
+// ==================== 关闭行为询问 ====================
+// close_action 未设置时后端会拦截关闭并发出该事件，这里弹窗收集选择后回传。
+// 选项与设置页保持一致：确认=最小化到托盘，取消=退出程序，
+// 右上角关闭或 Esc 视为取消本次关闭（distinguishCancelAndClose 用于区分后两者）
+let closing = false
+
+function setupCloseConfirm() {
+  Events.On('close-action-request', async () => {
+    // 弹窗未关闭时忽略重复请求，避免连点关闭叠出多层弹窗
+    if (closing) return
+    closing = true
+    try {
+      await ElMessageBox.confirm(
+        t('close_confirm_message', '请选择点击关闭按钮后的行为，可在设置中固定为默认。'),
+        t('close_confirm_title', '关闭窗口'),
+        {
+          confirmButtonText: t('close_confirm_tray', '最小化到托盘'),
+          cancelButtonText: t('close_confirm_exit', '退出程序'),
+          distinguishCancelAndClose: true,
+          type: 'info',
+        }
+      )
+      await ResolveCloseAction('tray', false)
+    } catch (action) {
+      if (action === 'cancel') {
+        await ResolveCloseAction('exit', false)
+      }
+    } finally {
+      closing = false
+    }
+  })
+}
+
 // 启动时尝试用本地保存的登录信息自动登录，无记录才进入登录页
 onMounted(async () => {
   window.addEventListener('keydown', handleKeyScroll)
+  setupCloseConfirm()
   try {
     const restored = await RestoreLogin()
     if (restored && restored.success) {

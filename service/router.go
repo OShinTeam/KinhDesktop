@@ -128,8 +128,11 @@ func (a *App) WindowToggleMaximise() {
 	a.app.Window.Current().ToggleMaximise()
 }
 
+// WindowClose 请求关闭窗口。
+// 不直接退出，而是走窗口关闭流程交由 close.go 的 hook 按设置分流
+// （直接退出 / 隐藏到托盘 / 询问用户），保证前端按钮与系统关闭走同一条路径
 func (a *App) WindowClose() {
-	a.app.Quit()
+	a.app.Window.Current().Close()
 }
 
 func (a *App) GetSystemInfo() SystemInfo {
