@@ -433,10 +433,11 @@ onUnmounted(stopPolling)
               :status="displayStatus(task) === 'FAILED' ? 'exception' : displayStatus(task) === 'COMPLETED' ? 'success' : undefined"
             />
           </div>
-          <!-- 操作行：按钮按状态固定占位，进度条不因按钮增减被挤压 -->
+          <!-- 操作行：按钮按状态固定占位，进度条不因按钮增减被挤压。
+               排队任务无引擎句柄，只有「移除」一个操作 -->
           <div class="task-ops">
             <el-button
-              v-if="runningStatuses.includes(task.status)"
+              v-if="!task.queued && runningStatuses.includes(task.status)"
               size="small"
               :icon="VideoPause"
               circle
@@ -444,7 +445,7 @@ onUnmounted(stopPolling)
               @click="handlePause(task)"
             />
             <el-button
-              v-if="resumableStatuses.includes(task.status) && !retryingSeqs.has(task.seq)"
+              v-if="!task.queued && resumableStatuses.includes(task.status) && !retryingSeqs.has(task.seq)"
               size="small"
               :icon="VideoPlay"
               circle
@@ -452,7 +453,7 @@ onUnmounted(stopPolling)
               @click="handleResume(task)"
             />
             <el-button
-              v-if="runningStatuses.includes(task.status)"
+              v-if="!task.queued && runningStatuses.includes(task.status)"
               size="small"
               :icon="CircleClose"
               circle

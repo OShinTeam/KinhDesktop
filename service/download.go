@@ -43,6 +43,8 @@ type downloadTaskEntry struct {
 	// Queued 任务因「同时下载文件数」达到上限而排队：尚未提交给引擎（TaskID 为空），
 	// 由调度器在有空位时按入队顺序自动提交
 	Queued bool `json:"queued"`
+	// LastError 排队任务递补提交失败的原因（仅此类失败有值，走前端自动重试）
+	LastError string `json:"last_error,omitempty"`
 }
 
 var (
@@ -70,19 +72,36 @@ var activeStatuses = map[string]bool{
 	"RESUMING": true, "VERIFYING": true, "PAUSED": true,
 }
 
-// downloadTaskActive 判断任务是否处于占用输出文件的活动状态（组件不可用/状态未知时保守视为活动）
-func downloadTaskActive(taskID string) bool {
+// slotOccupyingStatuses 占用并发名额的状态。与 activeStatuses 分开：
+// PAUSED 暂停任务不耗带宽却占着文件，文件避让要算它，但并发名额应该让出来 ——
+// 否则两个任务都暂停后队列永久饥饿。状态未知时保守计入（引擎不可用不抢名额）
+var slotOccupyingStatuses = map[string]bool{
+	"PENDING": true, "PROBING": true, "DOWNLOADING": true,
+	"RESUMING": true, "VERIFYING": true,
+}
+
+// taskStatusOf 引擎侧任务状态（空串表示引擎不可用/任务丢失）
+func taskStatusOf(taskID string) string {
 	status := oshindTaskStatus(taskID)
 	if status == "" {
-		return true
+		return ""
 	}
 	var s struct {
 		Status string `json:"status"`
 	}
-	if json.Unmarshal([]byte(status), &s) != nil || s.Status == "" {
+	if json.Unmarshal([]byte(status), &s) != nil {
+		return ""
+	}
+	return s.Status
+}
+
+// downloadTaskActive 判断任务是否处于占用输出文件的活动状态（组件不可用/状态未知时保守视为活动）
+func downloadTaskActive(taskID string) bool {
+	status := taskStatusOf(taskID)
+	if status == "" {
 		return true
 	}
-	return activeStatuses[s.Status]
+	return activeStatuses[status]
 }
 
 // fileNameTaken 指定文件名在输出目录是否被占用：
@@ -117,14 +136,19 @@ func maxActiveDownloads() int {
 	return getSettings().DownloadMaxActive
 }
 
-// engineActiveCount 引擎侧活动任务数（占用并发名额的状态）
-func engineActiveCount() int {
+// slotOccupyingCount 占用并发名额的任务数（PAUSED 不算 —— 暂停就是为了让出带宽；
+// 引擎不可用/状态未知时保守计入，避免引擎故障期间无限放行新任务）
+func slotOccupyingCount() int {
 	n := 0
 	downloadMu.Lock()
 	entries := append([]downloadTaskEntry(nil), downloadTasks...)
 	downloadMu.Unlock()
 	for _, e := range entries {
-		if !e.Queued && downloadTaskActive(e.TaskID) {
+		if e.Queued {
+			continue
+		}
+		status := taskStatusOf(e.TaskID)
+		if status == "" || slotOccupyingStatuses[status] {
 			n++
 		}
 	}
@@ -181,27 +205,28 @@ func DispatchQueuedDownloads() {
 	for {
 		downloadSubmitMu.Lock()
 
-		if engineActiveCount() >= maxActiveDownloads() {
+		if slotOccupyingCount() >= maxActiveDownloads() {
 			downloadSubmitMu.Unlock()
 			return
 		}
 
-		// 取最早入队的排队任务
+		// 取最早入队的排队任务（快照 Seq 定位条目——切片可能在提交期间被增删，
+		// 绝不能跨锁复用切片下标）
 		downloadMu.Lock()
-		idx := -1
+		var entry *downloadTaskEntry
 		for i := range downloadTasks {
 			if downloadTasks[i].Queued {
-				idx = i
+				entry = &downloadTasks[i]
 				break
 			}
 		}
-		var entry downloadTaskEntry
-		if idx >= 0 {
-			entry = downloadTasks[idx]
+		var snap downloadTaskEntry
+		if entry != nil {
+			snap = *entry
 		}
 		downloadMu.Unlock()
 
-		if idx < 0 {
+		if entry == nil {
 			// 没有排队任务了
 			downloadSubmitMu.Unlock()
 			return
@@ -211,34 +236,47 @@ func DispatchQueuedDownloads() {
 			getSettings().DownloadDir, effectiveDownloadUA(),
 			getSettings().DownloadThreads, getSettings().DownloadChunkKB)
 
-		taskID, err := downloadEngine().SubmitDownload(entry.URL, config, nil)
+		taskID, err := downloadEngine().SubmitDownload(snap.URL, config, nil)
+
+		// 提交返回后按 Seq 重新定位条目（排队期间它可能已被移除/发生变化）
+		downloadMu.Lock()
+		found := -1
+		for i := range downloadTasks {
+			if downloadTasks[i].Seq == snap.Seq {
+				found = i
+				break
+			}
+		}
+
 		if err != nil && taskID == "" {
-			// 提交失败（协议不支持等）：保留排队状态，错误信息透出到任务条目，
-			// 不再自动重试 —— 避免坏 URL 每次轮询都白提交一次
-			downloadMu.Lock()
-			if downloadTasks[idx].Queued && downloadTasks[idx].Seq == entry.Seq {
-				downloadTasks[idx].Queued = false
-				downloadTasks[idx].TaskID = ""
+			// 提交失败（协议不支持等）：落为 FAILED 态并记录错误，交给前端自动重试
+			// 机制处理 —— 不保留排队态（会每轮轮询白提交一次），也不能悬空
+			// （既非排队又无引擎状态，界面无从展示、无从操作）
+			if found >= 0 && downloadTasks[found].Queued {
+				downloadTasks[found].Queued = false
+				downloadTasks[found].TaskID = fmt.Sprintf("failed-%d", snap.Seq)
+				downloadTasks[found].LastError = err.Error()
 			}
 			downloadMu.Unlock()
-			global.Log.Errorf("排队任务提交失败: %s (%s): %v", entry.FileName, entry.URL, err)
+			global.Log.Errorf("排队任务提交失败: %s (%s): %v", snap.FileName, snap.URL, err)
 			downloadSubmitMu.Unlock()
 			continue
 		}
 
-		// 提交成功：台账条目从排队态转为引擎态
-		downloadMu.Lock()
-		if downloadTasks[idx].Queued && downloadTasks[idx].Seq == entry.Seq {
-			downloadTasks[idx].TaskID = taskID
-			downloadTasks[idx].Queued = false
+		if found >= 0 && downloadTasks[found].Queued {
+			// 提交成功：台账条目从排队态转为引擎态
+			downloadTasks[found].TaskID = taskID
+			downloadTasks[found].Queued = false
+			downloadMu.Unlock()
+			downloadSubmitMu.Unlock()
+			global.Log.Infof("排队任务已开始下载: %s (%s)", snap.FileName, taskID)
 		} else {
 			// 条目在排队期间被移除：撤回引擎侧任务，防孤儿下载
+			downloadMu.Unlock()
+			downloadSubmitMu.Unlock()
 			downloadEngine().CancelTask(taskID)
 			downloadEngine().RemoveTask(taskID)
 		}
-		downloadMu.Unlock()
-		downloadSubmitMu.Unlock()
-		global.Log.Infof("排队任务已开始下载: %s (%s)", entry.FileName, taskID)
 	}
 }
 
@@ -278,8 +316,8 @@ func (a *App) SubmitDownload(url, fileName string, fsID int64) *DownloadSubmitRe
 
 	config := buildDownloadConfig(settings.DownloadDir, effectiveDownloadUA(), settings.DownloadThreads, settings.DownloadChunkKB)
 
-	// 并发上限：活动任务已满时转入排队（不占引擎名额），由调度器递补
-	if engineActiveCount() >= maxActiveDownloads() {
+	// 并发上限：占用名额的任务已满时转入排队（不占引擎名额），由调度器递补
+	if slotOccupyingCount() >= maxActiveDownloads() {
 		entry := enqueueDownload(fileName, url)
 		downloadSubmitMu.Unlock()
 		result.Success = true
@@ -349,6 +387,14 @@ func (a *App) GetDownloadTasks() []map[string]interface{} {
 			list = append(list, item)
 			continue
 		}
+		// 递补提交失败的任务（failed-<seq> 占位）：引擎侧无状态，落 FAILED + 原因，
+		// 前端自动重试（ResumeDownloadTask）会在有空位后把它送回引擎
+		if entry.LastError != "" {
+			item["status"] = "FAILED"
+			item["error"] = entry.LastError
+			list = append(list, item)
+			continue
+		}
 		// 透传组件状态：失败/组件侧任务丢失时保留台账元数据
 		if statusJSON := oshindTaskStatus(entry.TaskID); statusJSON != "" {
 			var status map[string]interface{}
@@ -374,7 +420,7 @@ func (a *App) GetDownloadTasks() []map[string]interface{} {
 	}
 
 	// 有任务离开活动态（完成/失败）且存在排队任务时，递补下一个。
-	// 放在列表读取路径上避免引入额外 goroutine/定时器；engineActiveCount 的
+	// 放在列表读取路径上避免引入额外 goroutine/定时器；slotOccupyingCount 的
 	// 判断很轻（缓存台账 + 状态查引擎），空转开销可忽略
 	if len(downloadTasks) > 0 {
 		hasQueued := false
@@ -394,13 +440,10 @@ func (a *App) GetDownloadTasks() []map[string]interface{} {
 }
 
 // CancelDownloadTask 取消任务（保留已下载内容）。
-// 排队任务尚未提交给引擎，引擎侧必然报 not found —— 语义上等价于「取消成功」，
-// 前端随后会调 RemoveDownloadTask 把它从台账删掉
+// 排队任务（queued-<seq> 占位 ID）引擎侧无句柄，前端不对其发 Cancel，
+// 移除走 RemoveDownloadTask
 func (a *App) CancelDownloadTask(taskID string) bool {
 	if err := downloadEngine().CancelTask(taskID); err != nil {
-		if strings.HasPrefix(taskID, "queued-") {
-			return true
-		}
 		global.Log.Warnf("取消下载任务失败: %v", err)
 		return false
 	}
@@ -418,19 +461,26 @@ func (a *App) PauseDownloadTask(taskID string) bool {
 
 // ResumeDownloadTask 恢复暂停/失败的任务
 // 组件侧移除旧任务并重新提交（自动检测 .oshin 断点状态），返回新任务 ID，
-// 台账条目需同步替换 ID，否则后续轮询查不到状态
+// 台账条目需同步替换 ID，否则后续轮询查不到状态。
+// 并发已满时拒绝恢复（false）—— 前端自动重试会在下一轮轮询再试，防止击穿上限
 func (a *App) ResumeDownloadTask(taskID string) bool {
+	if slotOccupyingCount() >= maxActiveDownloads() {
+		global.Log.Infof("并发已满(%d)，暂缓恢复任务: %s", maxActiveDownloads(), taskID)
+		return false
+	}
+
 	newID, err := downloadEngine().ResumeTask(taskID, nil)
 	if err != nil {
 		global.Log.Warnf("恢复下载任务失败: %v", err)
 		return false
 	}
 
-	// 台账换 ID（保持原位置与创建时间、文件名元数据）
+	// 台账换 ID（保持原位置与创建时间、文件名元数据），并清掉递补失败留下的旧错误
 	downloadMu.Lock()
 	for i := range downloadTasks {
 		if downloadTasks[i].TaskID == taskID {
 			downloadTasks[i].TaskID = newID
+			downloadTasks[i].LastError = ""
 			break
 		}
 	}
@@ -602,8 +652,8 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 		config.TLSConfig.InsecureSkipVerify = true
 	}
 
-	// 并发上限：活动任务已满时转入排队（不占引擎名额），由调度器递补
-	if engineActiveCount() >= maxActiveDownloads() {
+	// 并发上限：占用名额的任务已满时转入排队（不占引擎名额），由调度器递补
+	if slotOccupyingCount() >= maxActiveDownloads() {
 		entry := enqueueDownload(opts.FileName, opts.URL)
 		downloadSubmitMu.Unlock()
 		result.Success = true
