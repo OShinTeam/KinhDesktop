@@ -1,18 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
     <dict>
         <key>CFBundlePackageType</key>
             <string>APPL</string>
         <key>CFBundleName</key>
-            <string>My Product</string>
+            <string>KinhDesktop</string>
+        <!-- 必须与 build/darwin/Taskfile.yml 里 create:app:bundle 复制进
+             Contents/MacOS 的文件名一致（即 APP_NAME = kinh-desktop，无扩展名），
+             否则 .app 启动时找不到可执行文件 -->
         <key>CFBundleExecutable</key>
-            <string>wbprobe.exe</string>
+            <string>kinh-desktop</string>
         <key>CFBundleIdentifier</key>
-            <string>com.example.wbprobe</string>
+            <string>com.oshinteam.kinhdesktop</string>
         <key>CFBundleVersion</key>
             <string>0.1.0</string>
         <key>CFBundleGetInfoString</key>
-            <string>This is a comment</string>
+            <string>KinhWeb Desktop Client</string>
         <key>CFBundleShortVersionString</key>
             <string>0.1.0</string>
         <key>CFBundleIconFile</key>
@@ -24,6 +28,6 @@
         <key>NSHighResolutionCapable</key>
             <string>true</string>
         <key>NSHumanReadableCopyright</key>
-            <string>© 2026, My Company</string>
+            <string>© 2026, OshinTeam</string>
     </dict>
 </plist>

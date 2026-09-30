@@ -8,27 +8,27 @@
         AllowPromptForPassword="false">
     </Settings>
     <Installer
-        Path="wbprobe.exe"
+        Path="kinh-desktop.exe"
         Arguments=""
-        InstallLocation="C:\Program Files\My Company\My Product">
+        InstallLocation="C:\Program Files\OshinTeam\KinhDesktop">
     </Installer>
     <PackageInformation
-        PackageName="My Product"
-        PackageDisplayName="My Product"
-        PublisherName="CN=My Company"
-        PublisherDisplayName="My Company"
+        PackageName="KinhDesktop"
+        PackageDisplayName="KinhDesktop"
+        PublisherName="CN=OshinTeam"
+        PublisherDisplayName="OshinTeam"
         Version="0.1.0.0"
-        PackageDescription="A wbprobe application">
+        PackageDescription="KinhWeb 桌面客户端">
         <Capabilities>
             <Capability Name="runFullTrust" />
             
         </Capabilities>
         <Applications>
             <Application
-                Id="com.example.wbprobe"
-                Description="A wbprobe application"
-                DisplayName="My Product"
-                ExecutableName="wbprobe.exe"
+                Id="com.oshinteam.kinhdesktop"
+                Description="KinhWeb 桌面客户端"
+                DisplayName="KinhDesktop"
+                ExecutableName="kinh-desktop.exe"
                 EntryPoint="Windows.FullTrustApplication">
                 
             </Application>
@@ -41,13 +41,13 @@
         </Dependencies>
         <Properties>
             <Framework>false</Framework>
-            <DisplayName>My Product</DisplayName>
-            <PublisherDisplayName>My Company</PublisherDisplayName>
-            <Description>A wbprobe application</Description>
+            <DisplayName>KinhDesktop</DisplayName>
+            <PublisherDisplayName>OshinTeam</PublisherDisplayName>
+            <Description>KinhWeb 桌面客户端</Description>
             <Logo>Assets\AppIcon.png</Logo>
         </Properties>
     </PackageInformation>
-    <SaveLocation PackagePath="wbprobe.msix" />
+    <SaveLocation PackagePath="kinh-desktop.msix" />
     <PackageIntegrity>
         <CertificatePath></CertificatePath>
     </PackageIntegrity>

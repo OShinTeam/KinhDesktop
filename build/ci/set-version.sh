@@ -62,6 +62,9 @@ echo "同步版本号 -> $version (versionCode=$version_code)"
 #    CI 不跑 update:build-assets（那会覆盖对 nsis 等资产的定制），故下面单独改
 subst "$root/build/config.yml" "s/^  version: \"[^\"]*\"/  version: \"$version\"/"
 
+# 2) Linux 包元数据（deb / rpm / Arch 三者的包版本）
+subst "$root/build/linux/nfpm/nfpm.yaml" "s/^version: \"[^\"]*\"/version: \"$version\"/"
+
 # 2) Windows 可执行文件的文件属性（资源管理器「属性 → 详细信息」里看到的版本）
 subst "$root/build/windows/info.json" \
   "s/(\"file_version\": *)\"[^\"]*\"/\\1\"$version\"/"

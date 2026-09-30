@@ -8,15 +8,15 @@
   IgnorableNamespaces="uap3">
   
   <Identity 
-    Name="com.example.wbprobe"
-    Publisher="CN=My Company"
+    Name="com.oshinteam.kinhdesktop"
+    Publisher="CN=OshinTeam"
     Version="0.1.0.0" 
     ProcessorArchitecture="x64" />
   
   <Properties>
-    <DisplayName>My Product</DisplayName>
-    <PublisherDisplayName>My Company</PublisherDisplayName>
-    <Description>A wbprobe application</Description>
+    <DisplayName>KinhDesktop</DisplayName>
+    <PublisherDisplayName>OshinTeam</PublisherDisplayName>
+    <Description>KinhWeb 桌面客户端</Description>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
   
@@ -29,10 +29,10 @@
   </Resources>
   
   <Applications>
-    <Application Id="com.example.wbprobe" Executable="wbprobe.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="com.oshinteam.kinhdesktop" Executable="kinh-desktop.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
-        DisplayName="My Product"
-        Description="A wbprobe application"
+        DisplayName="KinhDesktop"
+        Description="KinhWeb 桌面客户端"
         BackgroundColor="transparent"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
@@ -41,7 +41,7 @@
       </uap:VisualElements>
       
       <Extensions>
-        <desktop:Extension Category="windows.fullTrustProcess" Executable="wbprobe.exe" />
+        <desktop:Extension Category="windows.fullTrustProcess" Executable="kinh-desktop.exe" />
         
         
       </Extensions>

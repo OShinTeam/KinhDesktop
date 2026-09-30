@@ -1,28 +1,31 @@
-# Feel free to remove those if you don't want/need to use them.
-# Make sure to check the documentation at https://nfpm.goreleaser.com
+# Linux 打包元数据（deb / rpm / Arch），由 wails3 内置的 nfpm 读取
+# 文档：https://nfpm.goreleaser.com
 #
-# The lines below are called `modelines`. See `:help modeline`
+# 注意：这里曾整份是 wails 模板的默认值（name 写成 wbprobe.exe、license MIT 等），
+# 会导致 `wails3 task linux:create:deb` 报
+#   matching "./bin/wbprobe.exe": file does not exist
 
-name: "wbprobe.exe"
+name: "kinh-desktop"
 arch: ${GOARCH}
 platform: "linux"
+# 版本号由 build/ci/set-version.sh 从 Git tag 同步
 version: "0.1.0"
 section: "default"
 priority: "extra"
-maintainer: ${GIT_COMMITTER_NAME} <${GIT_COMMITTER_EMAIL}>
-description: "A wbprobe application"
-vendor: "My Company"
-homepage: "https://wails.io"
-license: "MIT"
+maintainer: "OshinTeam <mogumc@outlook.com>"
+description: "KinhWeb 桌面客户端"
+vendor: "OshinTeam"
+homepage: "https://github.com/OshinTeam/KinhDesktop"
+license: "GPL-2.0"
 release: "1"
 
 contents:
-  - src: "./bin/wbprobe.exe"
-    dst: "/usr/local/bin/wbprobe.exe"
+  - src: "./bin/kinh-desktop"
+    dst: "/usr/local/bin/kinh-desktop"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/wbprobe.exe.png"
-  - src: "./build/linux/wbprobe.exe.desktop"
-    dst: "/usr/share/applications/wbprobe.exe.desktop"
+    dst: "/usr/share/icons/hicolor/128x128/apps/kinh-desktop.png"
+  - src: "./build/linux/kinh-desktop.desktop"
+    dst: "/usr/share/applications/kinh-desktop.desktop"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:
@@ -46,9 +49,6 @@ overrides:
 # scripts section to ensure desktop database is updated after install
 scripts:
   postinstall: "./build/linux/nfpm/scripts/postinstall.sh"
-  # You can also add preremove, postremove if needed
-  # preremove: "./build/linux/nfpm/scripts/preremove.sh"
-  # postremove: "./build/linux/nfpm/scripts/postremove.sh"
 
 # If you build your app with -tags gtk3 (legacy WebKit2GTK 4.1 stack — supported through v3.0.x, removed in v3.1),
 # replace the depends/overrides above with these:
@@ -65,16 +65,3 @@ scripts:
 #     depends:
 #       - gtk3
 #       - webkit2gtk-4.1
-#
-# replaces:
-#   - foobar
-# provides:
-#   - bar
-# recommends:
-#   - whatever
-# suggests:
-#   - something-else
-# conflicts:
-#   - not-foo
-#   - not-bar
-# changelog: "changelog.yaml"
