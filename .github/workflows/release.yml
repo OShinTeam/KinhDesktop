@@ -29,6 +29,9 @@ env:
   # 否则 CLI 生成的 bindings 与编译期使用的库版本不一致
   WAILS3_VERSION: v3.0.0-beta.23
   NODE_VERSION: '22'
+  # 主代理偶发 HTTP/2 stream error（表现为 "INTERNAL_ERROR; received from peer"），
+  # 挂镜像作为回退；正常情况不会走到第二个
+  GOPROXY: https://proxy.golang.org,https://goproxy.cn,direct
 
 jobs:
   # ==================== Windows ====================
@@ -113,11 +116,21 @@ jobs:
 
       - name: Create DMG
         run: |
+          # .app 的名字取自顶层 Taskfile 的 APP_NAME（kinh-desktop），
+          # 不是 config.yml 里的 productName（KinhDesktop）—— 这里动态查找，
+          # 避免以后 APP_NAME 变化时又对不上
+          APP_BUNDLE=$(ls -d bin/*.app 2>/dev/null | head -1)
+          if [ -z "$APP_BUNDLE" ]; then
+            echo "未找到 .app，bin/ 实际内容：" >&2
+            ls -la bin >&2
+            exit 1
+          fi
+          echo "packaging: $APP_BUNDLE"
           hdiutil create \
             -volname "KinhDesktop" \
-            -srcfolder "bin/KinhDesktop.app" \
+            -srcfolder "$APP_BUNDLE" \
             -ov -format UDZO \
-            "bin/KinhDesktop.dmg"
+            "bin/kinh-desktop.dmg"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -149,7 +162,9 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
 
       # wails v3 在 Linux 上默认走 GTK4 + WebKitGTK 6.0，需要 Ubuntu 24.04+。
-      # build-essential 提供 CGO 所需的 gcc（缺了会退化成 Docker 交叉编译）。
+      # 这套依赖有两处用途：① 编译 wails3 CLI —— 它依赖 cgo 编译的
+      # internal/operatingsystem 包；② 编译应用本体。build-essential 提供 gcc，
+      # 缺了应用构建会退化成 Docker 交叉编译（runner 上没有 Docker，必失败）。
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update
@@ -169,11 +184,16 @@ jobs:
 
       # deb/rpm 由 wails3 内置的 nfpm 生成，不需要 dpkg-deb / rpmbuild。
       # AUR 包面向 Arch 用户仓库，不在此处构建。
-      - name: Build packages
+      # 拆成两步：AppImage 由 linuxdeploy 驱动，要把整条 GTK 栈打进包里，
+      # 过程中会输出 "Processing GTK files" 并持续数分钟 —— 放在前面会拖住
+      # deb/rpm 的产出，所以让它最后单独跑
+      - name: Build deb / rpm
         run: |
-          wails3 task linux:create:appimage
           wails3 task linux:create:deb
           wails3 task linux:create:rpm
+
+      - name: Build AppImage
+        run: wails3 task linux:create:appimage
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -213,6 +233,20 @@ jobs:
         with:
           distribution: zulu
           java-version: '21'
+
+      # 编译 wails3 CLI 本身就需要 GTK4 / WebKitGTK 的开发库：
+      # wails3 依赖 internal/operatingsystem 包，而该包是 cgo 编译的，
+      # 要读 gtk4 与 webkitgtk-6.0 的 pkg-config 信息。缺了会在
+      # `go install` 阶段直接报 "Package gtk4 was not found in the pkg-config search path"。
+      # Android 打包本身用不到 GTK，但装 CLI 这一步躲不开。
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            pkg-config \
+            libgtk-4-dev \
+            libwebkitgtk-6.0-dev
 
       - name: Install wails3 CLI
         run: |
