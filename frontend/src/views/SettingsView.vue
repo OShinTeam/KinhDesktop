@@ -36,8 +36,12 @@ const form = reactive({
   download_chunk_kb: 500,
   download_dir: '',
   download_acc_link: '',
+  download_force_tls: true,
   download_max_retries: 3,
   download_max_active: 2,
+  experimental_multi_link: false,
+  experimental_channel: 'auto',
+  experimental_count: 4,
   log_level: 'info'
 })
 
@@ -45,6 +49,10 @@ const form = reactive({
 const builtInDefaultUA = 'netdisk;DL'
 const loading = ref(false)
 const saving = ref(false)
+
+// 加速链接是否已配置：未配置时多地址下载禁用「加速链接」渠道选项，
+// 且默认渠道强制回落本地解析
+const accLinkConfigured = computed(() => !!form.download_acc_link)
 
 // 基线快照：加载/保存成功后的设置值，用于脏检测与恢复
 let baseline = ''
@@ -62,8 +70,12 @@ function serializeForm() {
     form.download_chunk_kb,
     form.download_dir,
     form.download_acc_link,
+    form.download_force_tls,
     form.download_max_retries,
     form.download_max_active,
+    form.experimental_multi_link,
+    form.experimental_channel,
+    form.experimental_count,
     form.log_level,
   ])
 }
@@ -125,6 +137,20 @@ async function loadSettings() {
     // 旧设置文件无并发上限字段时回退默认值
     if (form.download_max_active === undefined || form.download_max_active === null) {
       form.download_max_active = 2
+    }
+    // 旧设置文件无实验性字段时回退默认值（默认关、auto 渠道、4 个地址）
+    if (form.experimental_multi_link === undefined || form.experimental_multi_link === null) {
+      form.experimental_multi_link = false
+    }
+    if (form.experimental_channel === undefined || form.experimental_channel === null) {
+      form.experimental_channel = 'auto'
+    }
+    if (form.experimental_count === undefined || form.experimental_count === null) {
+      form.experimental_count = 4
+    }
+    // 旧设置文件无强制 TLS 字段时回退默认值（默认开）
+    if (form.download_force_tls === undefined || form.download_force_tls === null) {
+      form.download_force_tls = true
     }
     langOptions.value = (langs || []).map(l => ({
       value: l.language_code,
@@ -366,6 +392,65 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
             step-strictly
           />
         </div>
+
+        <!-- 强制启用 TLS：本地解析出的 http 最终地址升级为 https（不影响手动新建任务） -->
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">{{ t('settings_force_tls', '强制启用 TLS') }}</div>
+            <div class="setting-desc">{{ t('settings_force_tls_desc', '将本地解析出的非 https 下载地址升级为 https。仅作用于网盘文件解析，不影响手动新建的任务') }}</div>
+          </div>
+          <el-switch v-model="form.download_force_tls" />
+        </div>
+
+        <!-- 实验性下载：文件列表多一个下载按钮，对选定渠道并发发起多次地址解析 -->
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">{{ t('settings_multi_link', '实验性下载') }}</div>
+            <div class="setting-desc">{{ t('settings_multi_link_desc', '对同一渠道并发发起多次解析以获取多个下载地址，从多个地址同时拉取同一文件。功能尚在实验阶段') }}</div>
+          </div>
+          <el-switch v-model="form.experimental_multi_link" />
+        </div>
+
+        <template v-if="form.experimental_multi_link">
+          <!-- 地址渠道：无加速链接时「加速链接」不可选 -->
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">{{ t('settings_multi_channel', '地址渠道') }}</div>
+              <div class="setting-desc">{{ accLinkConfigured
+                ? t('settings_multi_channel_desc', '并发解析使用的地址来源')
+                : t('settings_multi_channel_no_acc', '未配置加速链接，仅可使用本地解析') }}</div>
+            </div>
+            <el-select
+              v-model="form.experimental_channel"
+              class="setting-control"
+              style="width: 140px"
+            >
+              <el-option value="auto" :label="t('settings_multi_channel_auto', '程序决定')" />
+              <el-option
+                value="remote"
+                :label="t('settings_multi_channel_remote', '加速链接')"
+                :disabled="!accLinkConfigured"
+              />
+              <el-option value="local" :label="t('settings_multi_channel_local', '本地解析')" />
+            </el-select>
+          </div>
+
+          <!-- 获取地址数量 -->
+          <div class="setting-row">
+            <div class="setting-info">
+              <div class="setting-label">{{ t('settings_multi_count', '获取地址数量') }}</div>
+              <div class="setting-desc">{{ t('settings_multi_count_desc', '并发发起的地址解析次数，地址按渠道实际返回为准') }}</div>
+            </div>
+            <el-input-number
+              v-model="form.experimental_count"
+              class="setting-control"
+              :min="2"
+              :max="6"
+              :step="1"
+              step-strictly
+            />
+          </div>
+        </template>
 
         <!-- 下载代理：留空不启用（⚠️ 当前引擎不支持代理配置，设置后不生效） -->
         <div class="setting-row">

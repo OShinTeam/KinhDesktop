@@ -45,6 +45,8 @@ type downloadTaskEntry struct {
 	Queued bool `json:"queued"`
 	// LastError 排队任务递补提交失败的原因（仅此类失败有值，走前端自动重试）
 	LastError string `json:"last_error,omitempty"`
+	// Sources 多源地址（实验性多地址下载）：排队任务递补时按原样重建引擎 config
+	Sources []string `json:"sources,omitempty"`
 }
 
 var (
@@ -157,14 +159,20 @@ func slotOccupyingCount() int {
 
 // enqueueDownload 把任务加入排队台账（须持有 downloadSubmitMu）
 func enqueueDownload(fileName, url string) *downloadTaskEntry {
+	return enqueueDownloadWithOptions(DownloadTaskOptions{URL: url, FileName: fileName})
+}
+
+// enqueueDownloadWithOptions 带完整选项入队（多源地址等需在递补时重建）
+func enqueueDownloadWithOptions(opts DownloadTaskOptions) *downloadTaskEntry {
 	downloadMu.Lock()
 	defer downloadMu.Unlock()
 	entry := downloadTaskEntry{
 		Seq:      nextDownloadSeq(),
-		FileName: fileName,
-		URL:      url,
+		FileName: opts.FileName,
+		URL:      opts.URL,
 		Created:  time.Now(),
 		Queued:   true,
+		Sources:  opts.MultiSources,
 	}
 	downloadTasks = append(downloadTasks, entry)
 	return &downloadTasks[len(downloadTasks)-1]
@@ -235,6 +243,10 @@ func DispatchQueuedDownloads() {
 		config := buildDownloadConfig(
 			getSettings().DownloadDir, effectiveDownloadUA(),
 			getSettings().DownloadThreads, getSettings().DownloadChunkKB)
+		// 排队时保存的多源地址原样带回（多地址下载任务递补不降级为单源）
+		if len(snap.Sources) > 0 {
+			config.MultiSources = snap.Sources
+		}
 
 		taskID, err := downloadEngine().SubmitDownload(snap.URL, config, nil)
 
@@ -591,6 +603,9 @@ type DownloadTaskOptions struct {
 	ChecksumType  string            `json:"checksum_type"`
 	ChecksumValue string            `json:"checksum_value"`
 	SkipTLSVerify bool              `json:"skip_tls_verify"`
+	// MultiSources 多源地址（实验性多地址下载）：引擎会从这些地址与主 URL
+	// 加权轮询拉取同一文件；nil/空表示单源
+	MultiSources []string `json:"multi_sources,omitempty"`
 }
 
 // SubmitDownloadWithOptions 提交自定义下载任务（组件存在时可用，选项覆盖设置默认值）
@@ -651,10 +666,15 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 	if opts.SkipTLSVerify && config.TLSConfig != nil {
 		config.TLSConfig.InsecureSkipVerify = true
 	}
+	// 多源地址（实验性多地址下载）：引擎会从主 URL + 这些地址加权拉取同一文件
+	if len(opts.MultiSources) > 0 {
+		config.MultiSources = opts.MultiSources
+	}
 
-	// 并发上限：占用名额的任务已满时转入排队（不占引擎名额），由调度器递补
+	// 并发上限：占用名额的任务已满时转入排队（不占引擎名额），由调度器递补。
+	// 排队任务入队时保存多源信息，递补时按原样重建 config
 	if slotOccupyingCount() >= maxActiveDownloads() {
-		entry := enqueueDownload(opts.FileName, opts.URL)
+		entry := enqueueDownloadWithOptions(opts)
 		downloadSubmitMu.Unlock()
 		result.Success = true
 		result.Queued = true
@@ -679,6 +699,7 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 		FileName: opts.FileName,
 		URL:      opts.URL,
 		Created:  time.Now(),
+		Sources:  opts.MultiSources,
 	})
 	downloadMu.Unlock()
 	downloadSubmitMu.Unlock()

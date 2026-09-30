@@ -1,7 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Clipboard } from '@wailsio/runtime'
+import { Clipboard, Events } from '@wailsio/runtime'
 import { useViewport } from '../composables/useViewport'
 import FileList from '../components/FileList.vue'
 import Breadcrumb from '../components/Breadcrumb.vue'
@@ -18,6 +18,7 @@ import { App } from '../../bindings/kinh-desktop/service'
 const {
   GetBaiduFileList, GetBaiduQuota, BaiduLogout, GetBaiduDownloadLink,
   GetBaiduDownloadLinkRemote, GetSettings, SubmitDownload,
+  ResolveMultiLink, SubmitDownloadWithOptions,
 } = App
 
 // 竖屏（高 > 宽）：导航条移到窗口底部、内容区在上，避免侧栏挤占横向空间；
@@ -51,13 +52,18 @@ const currentDir = ref('/')
 // 远程解析是否可用：设置中配置了加速链接时文件列表才显示远程解析按钮
 const remoteEnabled = ref(false)
 
+// 实验性多地址下载是否可用：设置开关（默认关）
+const multiLinkEnabled = ref(false)
+
 async function loadRemoteEnabled() {
   try {
     const settings = await GetSettings()
     remoteEnabled.value = !!settings?.download_acc_link
+    multiLinkEnabled.value = !!settings?.experimental_multi_link
     resolveUA.value = settings?.download_user_agent || ''
   } catch {
     remoteEnabled.value = false
+    multiLinkEnabled.value = false
     resolveUA.value = ''
   }
 }
@@ -158,7 +164,12 @@ async function refreshAll() {
 const resolving = ref({ active: false, fs_id: 0, type: '', name: '' })
 
 // 文件操作：download 本地解析 / download_remote 远程解析（需在设置中配置加速链接）
+// download_multi 实验性多地址下载（设置开关开启后显示按钮）
 async function handleFileAction(payload) {
+  if (payload?.type === 'download_multi') {
+    await handleMultiLinkDownload(payload.item)
+    return
+  }
   if (payload?.type !== 'download' && payload?.type !== 'download_remote') return
   const item = payload.item
   if (!item?.fs_id) return
@@ -196,6 +207,90 @@ const resolveUA = ref('')
 // 下载直链弹窗：组件不存在时展示链接与 UA（复制链接/复制UA）；
 // 组件存在时提供「添加到下载管理」推送任务
 const downloadLink = ref(null)
+
+// ==================== 实验性下载 ====================
+// 流程：点击按钮 → 弹窗显示「将获取 N 个地址」（N 来自设置，弹窗内不可改，
+// 避免与设置页重复收集同一信息）→ 点「添加到下载管理」→ 开始获取（进度经
+// 事件推送）→ 成功后自动提交任务并关闭。失败则留在弹窗可重试。
+
+const multiLink = ref(null) // { name, fs_id, phase: 'idle'|'fetching', count }
+
+const multiLinkProgress = ref({ done: 0, total: 0, links: 0 })
+
+// 打开弹窗：数量取设置值
+async function handleMultiLinkDownload(item) {
+  if (!item?.fs_id) return
+  if (resolving.value.active) return
+  if (multiLink.value?.phase === 'fetching') return
+
+  const name = item.server_filename || item.filename || ''
+  let count = 4
+  try {
+    const settings = await GetSettings()
+    if (settings?.experimental_count >= 2) count = settings.experimental_count
+    if (count > 6) count = 6
+  } catch { /* 取不到设置就用默认 4 */ }
+
+  multiLink.value = { name, fs_id: item.fs_id, phase: 'idle', count }
+}
+
+// 点「添加到下载管理」：先并发解析（进度经事件推送），成功后立即提交任务
+async function pushMultiLinkToDownload() {
+  if (!multiLink.value || multiLink.value.phase === 'fetching') return
+  const { fs_id, name, count } = multiLink.value
+
+  multiLink.value.phase = 'fetching'
+  multiLinkProgress.value = { done: 0, total: count, links: 0 }
+  resolving.value = { active: true, fs_id, type: 'download_multi', name }
+
+  try {
+    const result = await ResolveMultiLink(fs_id, name, count)
+    if (!result?.success || !result.dlink) {
+      ElMessage.error(result?.message || t('download_link_failed', '获取下载地址失败'))
+      // 留在弹窗恢复 idle，用户可直接重试
+      if (multiLink.value && multiLink.value.fs_id === fs_id) {
+        multiLink.value.phase = 'idle'
+      }
+      return
+    }
+
+    const submit = await SubmitDownloadWithOptions({
+      url: result.dlink,
+      file_name: result.filename || name,
+      multi_sources: result.sources || [],
+    })
+    if (!submit?.success) {
+      ElMessage.error(submit?.message || t('download_submit_failed', '添加下载任务失败'))
+      if (multiLink.value && multiLink.value.fs_id === fs_id) {
+        multiLink.value.phase = 'idle'
+      }
+      return
+    }
+
+    ElMessage.success(submit.queued
+      ? t('download_submit_queued', '并发已满，任务已加入排队')
+      : t('download_submit_success', '已添加到下载管理'))
+    closeMultiLink()
+  } catch (err) {
+    ElMessage.error(t('download_submit_failed', '添加下载任务失败') + ': ' + String(err))
+    if (multiLink.value && multiLink.value.fs_id === fs_id) {
+      multiLink.value.phase = 'idle'
+    }
+  } finally {
+    resolving.value = { active: false, fs_id: 0, type: '', name: '' }
+  }
+}
+
+// 解析进度事件：后端每次解析请求完成时推送一次
+Events.On('experimental-link-progress', (ev) => {
+  const p = ev?.data
+  if (!p || !multiLink.value || multiLink.value.phase !== 'fetching') return
+  multiLinkProgress.value = { done: p.done, total: p.total, links: p.links }
+})
+
+function closeMultiLink() {
+  multiLink.value = null
+}
 
 function closeDownloadLink() {
   downloadLink.value = null
@@ -379,6 +474,7 @@ function vipInfo(vipType) {
             :files="files"
             :loading="loading"
             :remote-enabled="remoteEnabled"
+            :multi-link-enabled="multiLinkEnabled"
             :resolving="resolving"
             @navigate="loadFiles"
             @action="handleFileAction"
@@ -419,6 +515,58 @@ function vipInfo(vipType) {
           @click="pushToDownloadManager"
         >
           {{ t('download_push_task', '添加到下载管理') }}
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 实验性下载弹窗：数量来自设置（弹窗内不可改，避免与设置页重复收集）；
+         点「添加到下载管理」后才开始解析，进度条实时显示，成功后自动提交并关闭 -->
+    <el-dialog
+      :model-value="!!multiLink"
+      :title="t('download_multi_title', '实验性下载')"
+      width="480px"
+      :close-on-click-modal="false"
+      @close="closeMultiLink"
+    >
+      <div v-if="multiLink" class="dl-link-body">
+        <div class="dl-link-name" :title="multiLink.name">{{ multiLink.name }}</div>
+
+        <!-- 待获取：显示将获取的地址数量（来自设置） -->
+        <template v-if="multiLink.phase === 'idle'">
+          <el-result
+            icon="info"
+            :title="`${t('download_multi_will_fetch', '将获取')} ${multiLink.count} ${t('download_multi_links_unit', '个')} ${t('download_multi_addresses', '下载地址')}`"
+            :sub-title="t('download_multi_ready', '将从多个地址同时拉取该文件')"
+          />
+        </template>
+
+        <!-- 获取中：进度条 -->
+        <template v-else-if="multiLink.phase === 'fetching'">
+          <el-progress
+            :percentage="multiLinkProgress.total
+              ? Math.round((multiLinkProgress.done / multiLinkProgress.total) * 100)
+              : 0"
+            :stroke-width="10"
+          />
+          <div class="multi-progress-text">
+            {{ t('download_multi_progress', '正在获取下载地址') }}
+            ({{ multiLinkProgress.done }}/{{ multiLinkProgress.total }})
+            ·
+            {{ t('download_multi_got', '已获取') }} {{ multiLinkProgress.links }}
+            {{ t('download_multi_links_unit', '个') }}
+          </div>
+        </template>
+      </div>
+      <template #footer>
+        <el-button @click="closeMultiLink">{{ t('logout_confirm_cancel', '取消') }}</el-button>
+        <el-button
+          type="primary"
+          :loading="multiLink?.phase === 'fetching'"
+          @click="pushMultiLinkToDownload"
+        >
+          {{ multiLink?.phase === 'fetching'
+            ? t('download_multi_fetching', '获取中…')
+            : t('download_push_task', '添加到下载管理') }}
         </el-button>
       </template>
     </el-dialog>
@@ -639,5 +787,12 @@ function vipInfo(vipType) {
   min-width: 0;
   word-break: break-all;
   user-select: text;
+}
+
+.multi-progress-text {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  text-align: center;
 }
 </style>

@@ -18,6 +18,7 @@ export type {
     BaiduSMSCodeResult,
     DownloadSubmitResult,
     DownloadTaskOptions,
+    MultiLinkResult,
     OShinDInfo,
     UpdateCheckResult
 } from "./models.js";

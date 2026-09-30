@@ -1,6 +1,6 @@
 <script setup>
 import {
-  Folder, Document, Picture, VideoPlay, Headset, Tickets, Box, Files, Download, Connection
+  Folder, Document, Picture, VideoPlay, Headset, Tickets, Box, Files, Download, Connection, MagicStick
 } from '@element-plus/icons-vue'
 import { formatBytes, formatTimestamp } from '../utils/format'
 import { useI18n } from '../composables/useI18n'
@@ -11,6 +11,7 @@ const props = defineProps({
   files: { type: Array, default: () => [] },
   loading: { type: Boolean, default: false },
   remoteEnabled: { type: Boolean, default: false }, // 远程解析是否可用（已配置加速链接）
+  multiLinkEnabled: { type: Boolean, default: false }, // 实验性多地址下载是否可用（设置开关）
   // 解析状态：全局同时仅允许一个解析请求（active 时其余按钮禁用，目标按钮转圈）
   resolving: { type: Object, default: () => ({ active: false, fs_id: 0, type: '', name: '' }) }
 })
@@ -125,6 +126,16 @@ function isResolving(item, type) {
               :loading="isResolving(item, 'download_remote')"
               :disabled="resolving.active && !isResolving(item, 'download_remote')"
               @click="triggerAction(item, 'download_remote')"
+            />
+            <el-button
+              v-if="multiLinkEnabled"
+              class="file-download-btn"
+              circle
+              :icon="MagicStick"
+              :title="t('download_multi_link', '实验性下载')"
+              :loading="isResolving(item, 'download_multi')"
+              :disabled="resolving.active && !isResolving(item, 'download_multi')"
+              @click="triggerAction(item, 'download_multi')"
             />
           </template>
           <span v-else class="file-ops-empty">-</span>

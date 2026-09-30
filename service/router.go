@@ -14,7 +14,8 @@ type App struct {
 }
 
 func NewApp(app *application.App) *App {
-	return &App{app: app}
+	appRef = &App{app: app}
+	return appRef
 }
 
 // ==================== 语言 ====================

@@ -48,6 +48,11 @@ export interface AppSettings {
     "download_acc_link": string;
 
     /**
+     * 强制启用 TLS：网盘解析出的非 https 地址升级为 https（不影响手动新建任务）
+     */
+    "download_force_tls": boolean;
+
+    /**
      * 下载失败自动重试次数（0 表示不重试）
      */
     "download_max_retries": number;
@@ -56,6 +61,24 @@ export interface AppSettings {
      * 同时下载文件数上限（超出部分排队）
      */
     "download_max_active": number;
+
+    /**
+     * ExperimentalMultiLink 实验性下载：对选定渠道并发发起多次地址解析。
+     * ⚠️ 百度 API 每次请求都会重新生成下载地址，因此对同一渠道多次请求
+     * 即可获得多个不同的地址 —— 这是多地址的来源
+     * 启用实验性下载（默认关）
+     */
+    "experimental_multi_link": boolean;
+
+    /**
+     * 地址渠道：auto（程序决定）/ remote（加速链接）/ local（本地解析），默认 auto
+     */
+    "experimental_channel": string;
+
+    /**
+     * 获取地址数量（1~4，默认 4）
+     */
+    "experimental_count": number;
 
     /**
      * 其他
@@ -222,6 +245,37 @@ export interface DownloadTaskOptions {
     "checksum_type": string;
     "checksum_value": string;
     "skip_tls_verify": boolean;
+
+    /**
+     * MultiSources 多源地址（实验性多地址下载）：引擎会从这些地址与主 URL
+     * 加权轮询拉取同一文件；nil/空表示单源
+     */
+    "multi_sources"?: string[] | null;
+}
+
+/**
+ * MultiLinkResult 地址解析结果（返回给前端）
+ */
+export interface MultiLinkResult {
+    "success": boolean;
+    "fs_id": number;
+    "filename": string;
+
+    /**
+     * 主地址（首个）
+     */
+    "dlink": string;
+
+    /**
+     * 其余地址（进引擎 MultiSources）
+     */
+    "sources": string[] | null;
+
+    /**
+     * 解析耗时（展示用）
+     */
+    "elapsed": string;
+    "message"?: string;
 }
 
 /**

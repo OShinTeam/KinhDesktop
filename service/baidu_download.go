@@ -53,9 +53,26 @@ type baiduFileMetaDlink struct {
 	Dlink          string `json:"dlink"`
 }
 
+// applyForceTLS 「强制启用 TLS」开关（作用于本地/远程两个解析出口）：
+// 对最终获取到的 dlink 做前缀替换 —— http:// 升级为 https://，
+// 已是 https 的地址（如 https://d.pcs...）一个字符都不动，不解析 URL、
+// 不重写路径与参数。仅在地址交给下载引擎前处理一次；
+// 手动新建任务不经过解析出口，不受影响。
+func applyForceTLS(dlink string) string {
+	if !getSettings().DownloadForceTLS {
+		return dlink
+	}
+	if strings.HasPrefix(dlink, "http://") {
+		return "https://" + strings.TrimPrefix(dlink, "http://")
+	}
+	return dlink
+}
+
 // GetBaiduDownloadLink 本地解析文件下载直链（filemetas + rand 签名 + Location 跟踪）
 func (a *App) GetBaiduDownloadLink(fsID int64) *BaiduDownloadLinkResult {
-	return resolveWithRetry(fsID, fetchDownloadLinkOnce)
+	result := resolveWithRetry(fsID, fetchDownloadLinkOnce)
+	result.Dlink = applyForceTLS(result.Dlink)
+	return result
 }
 
 // GetBaiduDownloadLinkRemote 远程解析文件下载直链（加速链接，需在设置中配置）
@@ -69,9 +86,13 @@ func (a *App) GetBaiduDownloadLinkRemote(fsID int64) *BaiduDownloadLinkResult {
 			Message: "未配置加速链接，请先在设置中填写",
 		}
 	}
-	return resolveWithRetry(fsID, func(fsID int64, bduss, stoken, ua string) (*BaiduDownloadLinkResult, int) {
+	// 远程解析出口同样应用 ForceTLS：只对最终拿到的 dlink 做前缀替换，
+	// 加速服务后续如何使用该地址不干预
+	result := resolveWithRetry(fsID, func(fsID int64, bduss, stoken, ua string) (*BaiduDownloadLinkResult, int) {
 		return fetchDownloadLinkRemoteOnce(fsID, bduss, stoken, acclink)
 	})
+	result.Dlink = applyForceTLS(result.Dlink)
+	return result
 }
 
 // resolveWithRetry 解析执行器：STOKEN 缺失时先刷新，凭证失效类错误码自动刷新重试一次

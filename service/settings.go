@@ -40,8 +40,15 @@ type AppSettings struct {
 	DownloadChunkKB    int    `json:"download_chunk_kb"`    // 分片大小（KB，0 表示未设置用默认值）
 	DownloadDir        string `json:"download_dir"`         // 默认下载目录
 	DownloadAccLink    string `json:"download_acc_link"`    // 远程解析加速链接（留空仅本地解析）
+	DownloadForceTLS   bool   `json:"download_force_tls"`   // 强制启用 TLS：网盘解析出的非 https 地址升级为 https（不影响手动新建任务）
 	DownloadMaxRetries int    `json:"download_max_retries"` // 下载失败自动重试次数（0 表示不重试）
 	DownloadMaxActive  int    `json:"download_max_active"`  // 同时下载文件数上限（超出部分排队）
+	// ExperimentalMultiLink 实验性下载：对选定渠道并发发起多次地址解析。
+	// ⚠️ 百度 API 每次请求都会重新生成下载地址，因此对同一渠道多次请求
+	// 即可获得多个不同的地址 —— 这是多地址的来源
+	ExperimentalMultiLink bool   `json:"experimental_multi_link"` // 启用实验性下载（默认关）
+	ExperimentalChannel   string `json:"experimental_channel"`    // 地址渠道：auto（程序决定）/ remote（加速链接）/ local（本地解析），默认 auto
+	ExperimentalCount     int    `json:"experimental_count"`      // 获取地址数量（1~4，默认 4）
 	// 其他
 	LogLevel string `json:"log_level"` // 日志等级：debug/info/warn/error
 }
@@ -58,6 +65,19 @@ const DefaultMaxRetries = 3
 // DefaultMaxActive 同时下载文件数默认上限
 const DefaultMaxActive = 2
 
+// DefaultMultiLinkCount 实验性下载默认获取地址数
+const DefaultMultiLinkCount = 4
+
+// normalizeChannel 校验地址渠道取值（auto / remote / local），非法值回落 auto
+func normalizeChannel(ch string) string {
+	switch ch {
+	case "remote", "local":
+		return ch
+	default:
+		return "auto"
+	}
+}
+
 // DefaultSettings 返回默认设置（线程数、UA、下载目录取常见默认值）
 func DefaultSettings() *AppSettings {
 	return &AppSettings{
@@ -69,6 +89,8 @@ func DefaultSettings() *AppSettings {
 		DownloadDir:        defaultDownloadDir(),
 		DownloadMaxRetries: DefaultMaxRetries,
 		DownloadMaxActive:  DefaultMaxActive,
+		ExperimentalCount:  DefaultMultiLinkCount,
+		DownloadForceTLS:   true, // 默认启用：https 优先是更安全的默认选择
 		LogLevel:           "info",
 	}
 }
@@ -233,6 +255,20 @@ func (a *App) SaveSettings(settings AppSettings) string {
 	}
 	settings.DownloadAccLink = strings.TrimSpace(settings.DownloadAccLink)
 	settings.DownloadProxy = strings.TrimSpace(settings.DownloadProxy)
+	// 实验性多地址下载：未配置加速链接时「加速渠道」不可用，默认渠道强制回落本地。
+	// 实验性下载：未配置加速链接时「加速链接」渠道不可用，渠道强制回落
+	// auto（程序决定会自动走本地）；渠道取值非法也回落 auto
+	if settings.ExperimentalMultiLink && !stringHasValue(settings.DownloadAccLink) {
+		if settings.ExperimentalChannel == "remote" {
+			settings.ExperimentalChannel = "auto"
+		}
+	}
+	settings.ExperimentalChannel = normalizeChannel(settings.ExperimentalChannel)
+	// 获取地址数量：2 ~ 6 个（1 无意义——单地址等价于普通下载；0 视为未设置，回落默认值 4）
+	if settings.ExperimentalCount <= 0 {
+		settings.ExperimentalCount = DefaultMultiLinkCount
+	}
+	settings.ExperimentalCount = clampInt(settings.ExperimentalCount, 2, MaxMultiLinkSources)
 	// UA 兜底：留空时落默认值，保证设置文件里永远有有效 UA
 	if strings.TrimSpace(settings.DownloadUserAgent) == "" {
 		settings.DownloadUserAgent = DefaultUserAgent

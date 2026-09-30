@@ -37,8 +37,8 @@ export function BaiduQRLogin(v: string, rememberLogin: boolean): $CancellablePro
 
 /**
  * CancelDownloadTask 取消任务（保留已下载内容）。
- * 排队任务尚未提交给引擎，引擎侧必然报 not found —— 语义上等价于「取消成功」，
- * 前端随后会调 RemoveDownloadTask 把它从台账删掉
+ * 排队任务（queued-<seq> 占位 ID）引擎侧无句柄，前端不对其发 Cancel，
+ * 移除走 RemoveDownloadTask
  */
 export function CancelDownloadTask(taskID: string): $CancellablePromise<boolean> {
     return $Call.ByID(3870940636, taskID);
@@ -177,6 +177,21 @@ export function ResolveCloseAction(action: string, remember: boolean): $Cancella
 }
 
 /**
+ * ResolveMultiLink 并发解析文件下载地址（实验性下载入口）。
+ * 
+ * 对选定渠道**并发发起 count 次解析请求**：百度 API 每次请求都会重新生成
+ * 下载地址，因此 N 次请求即得 N 个不同地址（无需去重）。全部请求完成后
+ * 统一收集，第一个地址作为主 URL，其余进引擎 MultiSources 多源下载。
+ * 
+ * ⚠️ 加速链接未配置/已清空时渠道必为 local（multiLinkChannel 内有回落），
+ * 绝不会对空地址发起请求；并发调 resolveWithRetry 安全 ——
+ * 凭证读写有 credentialMu 保护（baidu_auth.go）。
+ */
+export function ResolveMultiLink(fsID: number, fileName: string, count: number): $CancellablePromise<$models.MultiLinkResult | null> {
+    return $Call.ByID(365341670, fsID, fileName, count);
+}
+
+/**
  * RestoreLogin 使用本地保存的登录信息自动登录（含 STOKEN 失效时刷新一次重试）
  */
 export function RestoreLogin(): $CancellablePromise<$models.BaiduLoginResult | null> {
@@ -186,7 +201,8 @@ export function RestoreLogin(): $CancellablePromise<$models.BaiduLoginResult | n
 /**
  * ResumeDownloadTask 恢复暂停/失败的任务
  * 组件侧移除旧任务并重新提交（自动检测 .oshin 断点状态），返回新任务 ID，
- * 台账条目需同步替换 ID，否则后续轮询查不到状态
+ * 台账条目需同步替换 ID，否则后续轮询查不到状态。
+ * 并发已满时拒绝恢复（false）—— 前端自动重试会在下一轮轮询再试，防止击穿上限
  */
 export function ResumeDownloadTask(taskID: string): $CancellablePromise<boolean> {
     return $Call.ByID(3249342345, taskID);
