@@ -19,6 +19,5 @@ export type {
     DownloadSubmitResult,
     DownloadTaskOptions,
     OShinDInfo,
-    OShinDUpdateResult,
     UpdateCheckResult
 } from "./models.js";

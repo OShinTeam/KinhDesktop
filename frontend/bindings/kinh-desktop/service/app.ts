@@ -43,15 +43,6 @@ export function CancelDownloadTask(taskID: string): $CancellablePromise<boolean>
 }
 
 /**
- * CheckOShinDUpdate 检查组件更新：
- *   - 已安装：compareVersion 真实对比
- *   - 未安装：仅查询最新版本供展示（视为可安装）
- */
-export function CheckOShinDUpdate(): $CancellablePromise<$models.OShinDUpdateResult> {
-    return $Call.ByID(2051626723);
-}
-
-/**
  * CheckUpdate 请求 GitHub Releases API 获取最新版本并对比
  */
 export function CheckUpdate(): $CancellablePromise<$models.UpdateCheckResult> {
@@ -114,7 +105,8 @@ export function GetLangTextMap(): $CancellablePromise<{ [_ in string]?: string }
 }
 
 /**
- * GetOShinDVersion 返回下载组件当前信息
+ * GetOShinDVersion 返回下载引擎信息。
+ * 引擎已编译进主程序，不存在「未安装」「加载失败」这一类状态。
  */
 export function GetOShinDVersion(): $CancellablePromise<$models.OShinDInfo> {
     return $Call.ByID(3641222686);
@@ -148,7 +140,7 @@ export function OpenFolderSelect(): $CancellablePromise<string> {
 }
 
 /**
- * PauseDownloadTask 暂停任务（组件保存断点状态，可恢复）
+ * PauseDownloadTask 暂停任务（引擎保存断点状态，可恢复）
  */
 export function PauseDownloadTask(taskID: string): $CancellablePromise<boolean> {
     return $Call.ByID(4289001386, taskID);

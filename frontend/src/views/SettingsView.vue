@@ -10,7 +10,7 @@ import { App } from '../../bindings/kinh-desktop/service'
 // v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
 const {
   GetSettings, SaveSettings, GetALLLang, OpenFolderSelect,
-  GetAppVersion, CheckUpdate, GetOShinDVersion, CheckOShinDUpdate,
+  GetAppVersion, CheckUpdate, GetOShinDVersion,
 } = App
 
 // 移动端（Android / iOS）需隐藏若干桌面专属设置项：窗口关闭行为、目录选择等
@@ -200,41 +200,14 @@ function openReleasePage() {
   }
 }
 
-// ==================== OShinD 下载组件（预留） ====================
-const oshind = ref({ installed: false, version: 'not_installed', repo_url: '' })
-const checkingOshind = ref(false)
-const oshindResult = ref(null)
-
-async function handleCheckOshind() {
-  checkingOshind.value = true
-  oshindResult.value = null
-  try {
-    const result = await CheckOShinDUpdate()
-    oshindResult.value = result
-    if (!result.success) {
-      ElMessage.error(t('update_check_failed', '检查更新失败') + ': ' + result.message)
-    } else if (result.has_update) {
-      ElMessage.success(`${t('component_update_found', '组件有新版本')}: ${result.latest_version}`)
-    } else {
-      ElMessage.info(result.message || t('update_latest', '当前已是最新版本'))
-    }
-  } catch (err) {
-    ElMessage.error(t('update_check_failed', '检查更新失败') + ': ' + String(err))
-  } finally {
-    checkingOshind.value = false
-  }
-}
-
-function openOshindPage() {
-  if (oshindResult.value?.page_url) {
-    BrowserOpenURL(oshindResult.value.page_url)
-  }
-}
+// ==================== OShinD 下载引擎 ====================
+// 引擎已随主程序编译，不再有「未安装 / 单独更新」的概念，这里仅展示版本
+const oshindVersion = ref('')
 
 onMounted(() => {
   loadSettings()
   GetAppVersion().then(v => { appVersion.value = v }).catch(() => { appVersion.value = '' })
-  GetOShinDVersion().then(info => { oshind.value = info }).catch(() => {})
+  GetOShinDVersion().then(info => { oshindVersion.value = info?.version || '' }).catch(() => {})
 })
 
 // 暴露给父组件：脏检测、放弃修改、保存（切换页面拦截用）
@@ -372,7 +345,7 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
           />
         </div>
 
-        <!-- 下载代理：留空不启用，作用于 OShinD 组件下载与直链请求 -->
+        <!-- 下载代理：留空不启用（⚠️ 当前引擎不支持代理配置，设置后不生效） -->
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-label">{{ t('settings_proxy', '下载代理') }}</div>
@@ -402,39 +375,12 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
           </div>
         </div>
 
-        <!-- 下载组件（OShinD）：版本显示 + 检查更新 -->
+        <!-- 下载组件（OShinD）：引擎随主程序编译，仅展示版本，没有独立更新入口 -->
         <div class="setting-row">
           <div class="setting-info">
             <div class="setting-label">{{ t('settings_component', '下载组件') }}</div>
-            <div class="setting-desc">{{ t('settings_component_engine', 'OShinD 下载引擎') }} · {{ oshind.installed ? oshind.version : t('settings_component_not_installed', '未安装') }}</div>
+            <div class="setting-desc">{{ t('settings_component_engine', 'OShinD 下载引擎') }} · {{ oshindVersion || t('settings_component_unknown', '未知') }}</div>
           </div>
-          <div class="setting-control about-control">
-            <el-button :loading="checkingOshind" @click="handleCheckOshind">
-              {{ checkingOshind ? t('settings_checking', '检查中...') : t('settings_check_update', '检查更新') }}
-            </el-button>
-            <el-button
-              v-if="oshindResult?.success && oshindResult.page_url"
-              :icon="Link"
-              @click="openOshindPage"
-            >
-              {{ t('update_view_page', '前往查看') }}
-            </el-button>
-          </div>
-        </div>
-
-        <!-- 组件更新提示：有更新时展示新版本信息，否则展示后端结论 -->
-        <div v-if="oshindResult?.success && oshindResult.has_update" class="update-panel">
-          <div class="update-title">
-            {{ t('component_update_found', '组件有新版本') }}:
-            <span class="update-versions">{{ oshindResult.current_version || t('settings_component_not_installed', '未安装') }} → {{ oshindResult.latest_version }}</span>
-          </div>
-          <pre v-if="oshindResult.changelog" class="update-changelog">{{ oshindResult.changelog }}</pre>
-        </div>
-        <div v-else-if="oshindResult?.success" class="update-panel update-ok">
-          {{ oshindResult.message || t('update_latest', '当前已是最新版本') }}
-        </div>
-        <div v-else-if="oshindResult && !oshindResult.success" class="update-panel update-ok">
-          {{ oshindResult.message }}
         </div>
       </div>
 

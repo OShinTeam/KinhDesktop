@@ -17,7 +17,7 @@ import { App } from '../../bindings/kinh-desktop/service'
 // v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
 const {
   GetBaiduFileList, GetBaiduQuota, BaiduLogout, GetBaiduDownloadLink,
-  GetBaiduDownloadLinkRemote, GetSettings, GetOShinDVersion, SubmitDownload,
+  GetBaiduDownloadLinkRemote, GetSettings, SubmitDownload,
 } = App
 
 // 竖屏（高 > 宽）：导航条移到窗口底部、内容区在上，避免侧栏挤占横向空间；
@@ -62,18 +62,6 @@ async function loadRemoteEnabled() {
   }
 }
 
-// OShinD 组件是否可用（决定弹窗动作与下载管理页形态）
-const oshindInstalled = ref(false)
-
-async function loadOshindInstalled() {
-  try {
-    const info = await GetOShinDVersion()
-    oshindInstalled.value = !!info?.installed
-  } catch {
-    oshindInstalled.value = false
-  }
-}
-
 // 设置页组件引用：脏检测（未保存修改时切换页面需拦截确认）
 const settingsRef = ref(null)
 
@@ -107,10 +95,9 @@ async function handleMenuSelect(key) {
       return // 留在本页，不切换
     }
   }
-  // 离开设置页时刷新远程解析/组件状态（设置中加速链接、组件可能已被修改/安装）
+  // 离开设置页时刷新远程解析状态（设置中的加速链接可能已被修改）
   if (activePage.value === 'settings') {
     loadRemoteEnabled()
-    loadOshindInstalled()
   }
   activePage.value = key
 }
@@ -290,7 +277,6 @@ onMounted(() => {
   loadFiles('/')
   loadQuota()
   loadRemoteEnabled()
-  loadOshindInstalled()
 })
 
 const menuItems = [
@@ -428,7 +414,6 @@ function vipInfo(vipType) {
         <el-button @click="copyDownloadLink">{{ t('download_copy_link', '复制链接') }}</el-button>
         <el-button @click="copyDownloadUA">{{ t('download_copy_ua', '复制UA') }}</el-button>
         <el-button
-          v-if="oshindInstalled"
           type="primary"
           :loading="submittingTask"
           @click="pushToDownloadManager"

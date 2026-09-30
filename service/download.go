@@ -9,19 +9,20 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"unsafe"
 
 	"kinh-desktop/global"
 )
 
-// ==================== 下载任务管理（组件存在时通过 OShinD FFI 执行） ====================
+// ==================== 下载任务管理（经 OShinD 引擎执行） ====================
 //
-// 组件存在：解析直链后调用 OShinD_Download 推送任务，任务状态由组件维护，
-//           前端轮询 GetDownloadTasks（透传组件状态 JSON）。
-// 组件不存在：无任务能力，下载管理页展示安装引导。
-// 代理设置：download_proxy 非空时透传给组件 options.proxy。
+// 解析直链后交给 OShinD 引擎提交任务，任务状态由引擎维护，
+// 前端轮询 GetDownloadTasks（透传引擎状态 JSON）。
+// 代理设置：download_proxy 当前不生效 —— 引擎的 DownloadConfig 没有代理字段，
+//           内部 http.Transport 也未接 ProxyFromEnvironment（详见 oshind.go）。
 // 同名去重：提交前检查磁盘（成品/.tmp/.oshin）与活动任务，重名自动重命名 name(n).ext；
 //           文件名未知时若存在同 URL 活动任务则显性报错，避免多任务同时写同一文件。
+//           ⚠️ 去重得到的文件名传不进引擎（引擎按 URL 推导、probe 后用 Content-Disposition 覆盖），
+//           目前仅用于台账展示与产物删除定位。
 
 type DownloadSubmitResult struct {
 	Success bool   `json:"success"`
@@ -134,15 +135,6 @@ func resolveUniqueDownloadName(outputDir, name, rawURL string) (finalName string
 func (a *App) SubmitDownload(url, fileName string, fsID int64) *DownloadSubmitResult {
 	result := &DownloadSubmitResult{}
 
-	installed, _, loadErr := loadOShinD()
-	if !installed {
-		result.Message = "OShinD 组件未安装"
-		if loadErr != nil {
-			result.Message += "（" + loadErr.Error() + "）"
-		}
-		return result
-	}
-
 	// 网盘文件：先解析直链
 	if fsID > 0 {
 		linkResult := a.GetBaiduDownloadLink(fsID)
@@ -172,19 +164,17 @@ func (a *App) SubmitDownload(url, fileName string, fsID int64) *DownloadSubmitRe
 	}
 	fileName = finalName
 
-	opts := oshindDownloadOptions(url, fileName, effectiveDownloadUA(), settings.DownloadDir, settings.DownloadProxy, settings.DownloadThreads, settings.DownloadChunkKB)
+	config := buildDownloadConfig(settings.DownloadDir, effectiveDownloadUA(), settings.DownloadThreads, settings.DownloadChunkKB)
 
-	ret, _, err := oshindProcDl.Call(strPtr(url), strPtr(opts))
-	if err != nil && isRealErr(err) {
+	// fileName 无法透传给引擎：types.DownloadConfig 没有文件名字段，Engine.SubmitDownload
+	// 一律按 URL 推导、probe 完成后再用 Content-Disposition 覆盖。因此上面经过
+	// resolveUniqueDownloadName 去重得到的文件名，实际只用于台账记录与产物删除定位。
+	taskID, err := downloadEngine().SubmitDownload(url, config, nil)
+	if err != nil && taskID == "" {
+		// 提交阶段未产生任务（协议不支持等），无状态可查询
 		downloadSubmitMu.Unlock()
-		global.Log.Errorf("OShinD 提交下载任务失败: %v", err)
-		result.Message = "提交下载任务失败"
-		return result
-	}
-	taskID := cStringToGo(ret)
-	if taskID == "" {
-		downloadSubmitMu.Unlock()
-		result.Message = "提交下载任务失败（组件返回空任务 ID）"
+		global.Log.Errorf("提交下载任务失败: %v", err)
+		result.Message = "提交下载任务失败: " + err.Error()
 		return result
 	}
 
@@ -207,11 +197,6 @@ func (a *App) SubmitDownload(url, fileName string, fsID int64) *DownloadSubmitRe
 
 // GetDownloadTasks 返回任务列表（台账元数据 + 组件实时状态合并）
 func (a *App) GetDownloadTasks() []map[string]interface{} {
-	installed, _, _ := loadOShinD()
-	if !installed {
-		return []map[string]interface{}{}
-	}
-
 	downloadMu.Lock()
 	tasks := append([]downloadTaskEntry(nil), downloadTasks...)
 	downloadMu.Unlock()
@@ -255,27 +240,17 @@ func (a *App) GetDownloadTasks() []map[string]interface{} {
 
 // CancelDownloadTask 取消任务（保留已下载内容）
 func (a *App) CancelDownloadTask(taskID string) bool {
-	installed, _, _ := loadOShinD()
-	if !installed || oshindProcCancel == nil {
+	if err := downloadEngine().CancelTask(taskID); err != nil {
+		global.Log.Warnf("取消下载任务失败: %v", err)
 		return false
 	}
-	ret, _, err := oshindProcCancel.Call(strPtr(taskID))
-	if err != nil && isRealErr(err) {
-		global.Log.Warnf("OShinD 取消任务失败: %v", err)
-		return false
-	}
-	return ret == 1
+	return true
 }
 
-// PauseDownloadTask 暂停任务（组件保存断点状态，可恢复）
+// PauseDownloadTask 暂停任务（引擎保存断点状态，可恢复）
 func (a *App) PauseDownloadTask(taskID string) bool {
-	installed, _, _ := loadOShinD()
-	if !installed || oshindProcPause == nil {
-		return false
-	}
-	_, _, err := oshindProcPause.Call(strPtr(taskID))
-	if err != nil && isRealErr(err) {
-		global.Log.Warnf("OShinD 暂停任务失败: %v", err)
+	if err := downloadEngine().PauseTask(taskID); err != nil {
+		global.Log.Warnf("暂停下载任务失败: %v", err)
 		return false
 	}
 	return true
@@ -285,26 +260,9 @@ func (a *App) PauseDownloadTask(taskID string) bool {
 // 组件侧移除旧任务并重新提交（自动检测 .oshin 断点状态），返回新任务 ID，
 // 台账条目需同步替换 ID，否则后续轮询查不到状态
 func (a *App) ResumeDownloadTask(taskID string) bool {
-	installed, _, _ := loadOShinD()
-	if !installed || oshindProcResume == nil {
-		return false
-	}
-	ret, _, err := oshindProcResume.Call(strPtr(taskID))
-	if err != nil && isRealErr(err) {
-		global.Log.Warnf("OShinD 恢复任务失败: %v", err)
-		return false
-	}
-	resp := cStringToGo(ret)
-	var result struct {
-		ID    string `json:"id"`
-		Error string `json:"error"`
-	}
-	if json.Unmarshal([]byte(resp), &result) != nil || result.ID == "" {
-		global.Log.Warnf("OShinD 恢复任务返回异常: %s", resp)
-		return false
-	}
-	if result.Error != "" {
-		global.Log.Warnf("OShinD 恢复任务失败: %s", result.Error)
+	newID, err := downloadEngine().ResumeTask(taskID, nil)
+	if err != nil {
+		global.Log.Warnf("恢复下载任务失败: %v", err)
 		return false
 	}
 
@@ -312,13 +270,13 @@ func (a *App) ResumeDownloadTask(taskID string) bool {
 	downloadMu.Lock()
 	for i := range downloadTasks {
 		if downloadTasks[i].TaskID == taskID {
-			downloadTasks[i].TaskID = result.ID
+			downloadTasks[i].TaskID = newID
 			break
 		}
 	}
 	downloadMu.Unlock()
 
-	global.Log.Infof("下载任务已恢复: %s -> %s", taskID, result.ID)
+	global.Log.Infof("下载任务已恢复: %s -> %s", taskID, newID)
 	return true
 }
 
@@ -328,12 +286,6 @@ func (a *App) ResumeDownloadTask(taskID string) bool {
 // 防止后台继续空跑下载。
 func (a *App) RemoveDownloadTask(taskID string, deleteFiles bool) map[string]interface{} {
 	result := map[string]interface{}{"success": false, "task_removed": false, "files_deleted": false}
-
-	installed, _, _ := loadOShinD()
-	if !installed {
-		result["message"] = "OShinD 组件未安装"
-		return result
-	}
 
 	// 读取台账元数据（文件名/URL 用于删除产物），随后从台账移除
 	downloadMu.Lock()
@@ -352,23 +304,13 @@ func (a *App) RemoveDownloadTask(taskID string, deleteFiles bool) map[string]int
 	}
 	result["task_removed"] = true
 
-	// 组件侧取消 + 移除（RemoveTask 内部亦会 cancel，此处 CancelTask 先行确保运行中任务停止）
-	cancelled := false
-	if oshindProcCancel != nil {
-		ret, _, err := oshindProcCancel.Call(strPtr(taskID))
-		if err == nil || !isRealErr(err) {
-			cancelled = ret == 1
-		}
+	// 引擎侧取消 + 移除（RemoveTask 内部亦会 cancel，此处 CancelTask 先行确保运行中任务停止）
+	engine := downloadEngine()
+	cancelled := engine.CancelTask(taskID) == nil
+	if engine.RemoveTask(taskID) {
+		cancelled = true
 	}
-	if oshindProcRemove != nil {
-		ret, _, err := oshindProcRemove.Call(strPtr(taskID))
-		if err == nil || !isRealErr(err) {
-			if ret == 1 {
-				cancelled = true
-			}
-		}
-	}
-	global.Log.Infof("下载任务已移除: %s (%s) 组件侧停止=%v", entry.FileName, taskID, cancelled)
+	global.Log.Infof("下载任务已移除: %s (%s) 引擎侧停止=%v", entry.FileName, taskID, cancelled)
 
 	// 删除下载产物（成品 / .tmp / .oshin）
 	if deleteFiles {
@@ -433,14 +375,6 @@ type DownloadTaskOptions struct {
 func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmitResult {
 	result := &DownloadSubmitResult{}
 
-	installed, _, loadErr := loadOShinD()
-	if !installed {
-		result.Message = "OShinD 组件未安装"
-		if loadErr != nil {
-			result.Message += "（" + loadErr.Error() + "）"
-		}
-		return result
-	}
 	if opts.URL == "" {
 		result.Message = "下载地址为空"
 		return result
@@ -455,10 +389,6 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 	ua := opts.UserAgent
 	if strings.TrimSpace(ua) == "" {
 		ua = effectiveDownloadUA()
-	}
-	proxy := opts.Proxy
-	if proxy == "" {
-		proxy = settings.DownloadProxy
 	}
 	connections := opts.Connections
 	if connections <= 0 {
@@ -480,19 +410,7 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 	}
 	opts.FileName = finalName
 
-	options := map[string]interface{}{
-		"output_dir":  outputDir,
-		"connections": connections,
-	}
-	if chunkKB > 0 {
-		options["chunk_size"] = int64(chunkKB) * 1024
-	}
-	if opts.FileName != "" {
-		options["file_name"] = opts.FileName
-	}
-	if ua != "" {
-		options["headers"] = map[string]string{"User-Agent": ua}
-	}
+	config := buildDownloadConfig(outputDir, ua, connections, chunkKB)
 	if len(opts.Headers) > 0 {
 		// 自定义 headers 与 UA 合并（显式传入的 UA 优先）
 		merged := make(map[string]string, len(opts.Headers)+1)
@@ -502,37 +420,22 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 		if ua != "" {
 			merged["User-Agent"] = ua
 		}
-		options["headers"] = merged
-	}
-	if proxy != "" {
-		options["proxy"] = proxy
+		config.Headers = merged
 	}
 	if opts.ChecksumType != "" && opts.ChecksumValue != "" {
-		options["checksum_type"] = opts.ChecksumType
-		options["checksum_value"] = opts.ChecksumValue
+		config.ChecksumType = opts.ChecksumType
+		config.ChecksumValue = opts.ChecksumValue
 	}
-	if opts.SkipTLSVerify {
-		options["skip_tls_verify"] = true
-	}
-
-	optsJSON, err := json.Marshal(options)
-	if err != nil {
-		downloadSubmitMu.Unlock()
-		result.Message = "组装下载选项失败"
-		return result
+	if opts.SkipTLSVerify && config.TLSConfig != nil {
+		config.TLSConfig.InsecureSkipVerify = true
 	}
 
-	ret, _, callErr := oshindProcDl.Call(strPtr(opts.URL), strPtr(string(optsJSON)))
-	if callErr != nil && isRealErr(callErr) {
+	// opts.FileName 同样无法透传给引擎，原因见 SubmitDownload 中的说明
+	taskID, err := downloadEngine().SubmitDownload(opts.URL, config, nil)
+	if err != nil && taskID == "" {
 		downloadSubmitMu.Unlock()
-		global.Log.Errorf("OShinD 提交自定义任务失败: %v", callErr)
-		result.Message = "提交下载任务失败"
-		return result
-	}
-	taskID := cStringToGo(ret)
-	if taskID == "" {
-		downloadSubmitMu.Unlock()
-		result.Message = "提交下载任务失败（组件返回空任务 ID）"
+		global.Log.Errorf("提交自定义下载任务失败: %v", err)
+		result.Message = "提交下载任务失败: " + err.Error()
 		return result
 	}
 
@@ -551,27 +454,4 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 	result.TaskID = taskID
 	global.Log.Infof("自定义下载任务已提交: %s (%s)", opts.FileName, taskID)
 	return result
-}
-
-// oshindTaskStatus 查询单个任务状态 JSON（组件不可用返回空串）
-func oshindTaskStatus(taskID string) string {
-	if oshindProcStat == nil {
-		return ""
-	}
-	ret, _, err := oshindProcStat.Call(strPtr(taskID))
-	if err != nil && isRealErr(err) {
-		return ""
-	}
-	return cStringToGo(ret)
-}
-
-// strPtr Go 字符串转 C 兼容指针（NUL 结尾由 Go 字符串字面量保证？否——需显式追加）
-func strPtr(s string) uintptr {
-	b := append([]byte(s), 0)
-	return uintptr(unsafe.Pointer(&b[0]))
-}
-
-// isRealErr 区分 syscall 返回的 "operation completed successfully" 噪音错误
-func isRealErr(err error) bool {
-	return err != nil && err.Error() != "The operation completed successfully."
 }

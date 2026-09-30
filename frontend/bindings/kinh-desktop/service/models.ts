@@ -17,7 +17,7 @@ export interface AppSettings {
     "close_action": string;
 
     /**
-     * 下载代理（留空不启用），作用于 OShinD 组件下载与直链请求
+     * 下载代理（留空不启用）。⚠️ 当前未生效：OShinD 引擎不支持代理配置
      */
     "download_proxy": string;
 
@@ -214,41 +214,11 @@ export interface DownloadTaskOptions {
 }
 
 /**
- * OShinDInfo 组件信息（返回给前端）
+ * OShinDInfo 下载引擎信息（返回给前端）
  */
 export interface OShinDInfo {
-    /**
-     * 是否已安装（文件存在且加载成功）
-     */
-    "installed": boolean;
-
-    /**
-     * 已安装版本；未安装时为 not_installed
-     */
     "version": string;
-
-    /**
-     * 仓库主页
-     */
     "repo_url": string;
-
-    /**
-     * 加载失败原因（存在但损坏/不兼容时非空）
-     */
-    "load_error"?: string;
-}
-
-/**
- * OShinDUpdateResult 检查 OShinD 更新结果
- */
-export interface OShinDUpdateResult {
-    "success": boolean;
-    "message": string;
-    "current_version"?: string;
-    "latest_version": string;
-    "has_update": boolean;
-    "changelog": string;
-    "page_url": string;
 }
 
 /**

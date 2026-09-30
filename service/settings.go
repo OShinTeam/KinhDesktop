@@ -33,7 +33,7 @@ type AppSettings struct {
 	// 程序设置
 	Language      string `json:"language"`       // 语言代码，如 zh-CN
 	CloseAction   string `json:"close_action"`   // 点击关闭后的操作：exit / tray（预留）
-	DownloadProxy string `json:"download_proxy"` // 下载代理（留空不启用），作用于 OShinD 组件下载与直链请求
+	DownloadProxy string `json:"download_proxy"` // 下载代理（留空不启用）。⚠️ 当前未生效：OShinD 引擎不支持代理配置
 	// 下载设置
 	DownloadUserAgent  string `json:"download_user_agent"`  // 默认 UA
 	DownloadThreads    int    `json:"download_threads"`     // 默认线程数
@@ -214,7 +214,7 @@ func (a *App) SaveSettings(settings AppSettings) string {
 	// 校验与规范化
 	settings.Language = strings.TrimSpace(settings.Language)
 	settings.DownloadThreads = clampInt(settings.DownloadThreads, 1, 64)
-	// 分片大小（KB）：OShinD 组件限制 64KB ~ 1GB，夹取后落库
+	// 分片大小（KB）：OShinD 引擎限制 64KB ~ 1GB，夹取后落库
 	settings.DownloadChunkKB = clampInt(settings.DownloadChunkKB, 64, 1024*1024)
 	// 失败自动重试次数：0 ~ 10 次
 	settings.DownloadMaxRetries = clampInt(settings.DownloadMaxRetries, 0, 10)

@@ -1,54 +1,24 @@
 <script setup>
 import { onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Browser } from '@wailsio/runtime'
 import { formatBytes } from '../utils/format'
 import { useI18n } from '../composables/useI18n'
-import { usePlatform } from '../composables/usePlatform'
 import { Plus, CircleClose, VideoPause, VideoPlay, Delete } from '@element-plus/icons-vue'
 import { App } from '../../bindings/kinh-desktop/service'
 
 // v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
 const {
   GetDownloadTasks, CancelDownloadTask, PauseDownloadTask, ResumeDownloadTask,
-  RemoveDownloadTask, GetSettings, GetOShinDVersion, SubmitDownloadWithOptions,
+  RemoveDownloadTask, GetSettings, SubmitDownloadWithOptions,
 } = App
 
-// v2 的 runtime.BrowserOpenURL 在 v3 中对应 @wailsio/runtime 的 Browser.OpenURL
-const BrowserOpenURL = Browser.OpenURL
-
 const { t } = useI18n()
-
-// 移动端（Android / iOS）暂不支持下载组件，不可用提示需与桌面端区分
-const { isMobile } = usePlatform()
-
-// OShinD 组件是否可用：不可用时显示说明，可用时显示任务列表 + 新建任务
-const oshindInstalled = ref(false)
-const oshindVersion = ref('')
-const oshindRepoURL = ref('')
-
-async function loadOshindState() {
-  try {
-    const info = await GetOShinDVersion()
-    oshindInstalled.value = !!info?.installed
-    oshindVersion.value = info?.installed ? info.version : ''
-    oshindRepoURL.value = info?.repo_url || ''
-  } catch {
-    oshindInstalled.value = false
-  }
-}
-
-function openRepoPage() {
-  // 优先用后端返回的 Releases 地址，异常时回退固定地址
-  BrowserOpenURL(oshindRepoURL.value || 'https://github.com/OshinTeam/OShinD/releases')
-}
 
 // 任务列表轮询（组件状态由组件侧维护，前端 1s 拉取一次）
 const tasks = ref([])
 const taskTimer = ref(null)
 
 async function refreshTasks() {
-  if (!oshindInstalled.value) return
   try {
     tasks.value = await GetDownloadTasks() || []
     // 失败任务检测：显式提示 + 自动重试（设置 max_retries > 0 时）
@@ -410,13 +380,9 @@ async function submitNewTask() {
 }
 
 onMounted(() => {
-  loadOshindState().then(() => {
-    if (oshindInstalled.value) {
-      loadDefaults()
-      refreshTasks()
-      startPolling()
-    }
-  })
+  loadDefaults()
+  refreshTasks()
+  startPolling()
 })
 
 onUnmounted(stopPolling)
@@ -427,7 +393,6 @@ onUnmounted(stopPolling)
     <header class="downloads-header">
       <span class="page-title">{{ t('page_downloads', '下载管理') }}</span>
       <el-button
-        v-if="oshindInstalled"
         :icon="Plus"
         @click="openNewTaskDialog"
       >
@@ -435,24 +400,8 @@ onUnmounted(stopPolling)
       </el-button>
     </header>
 
-    <!-- 组件不可用：组件已随应用内嵌，不存在「手动下载安装」路径，按平台只给说明 -->
-    <div v-if="!oshindInstalled" class="install-guide">
-      <el-empty :description="t('oshind_unavailable', '下载组件不可用')">
-        <div class="install-steps">
-          <p class="install-intro">
-            {{
-              isMobile
-                ? t('oshind_unsupported_mobile', '当前平台暂不支持下载功能，文件浏览与管理仍可正常使用。')
-                : t('oshind_load_failed', '下载组件未能加载，可能是安装不完整。建议重新安装应用后重试。')
-            }}
-          </p>
-          <el-button v-if="!isMobile" @click="openRepoPage">{{ t('oshind_about', '了解 OShinD') }}</el-button>
-        </div>
-      </el-empty>
-    </div>
-
-    <!-- 组件已安装：任务列表 -->
-    <template v-else>
+    <!-- 任务列表 -->
+    <template>
       <div v-if="tasks.length === 0" class="page-placeholder">
         <el-empty :description="t('task_empty', '暂无下载任务')" />
       </div>
@@ -654,39 +603,6 @@ onUnmounted(stopPolling)
   display: flex;
   justify-content: center;
   align-items: center;
-}
-
-/* 安装引导 */
-.install-guide {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.install-steps {
-  max-width: 420px;
-  text-align: center;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  align-items: center;
-}
-
-.install-intro {
-  margin: 0;
-  font-size: 13px;
-  color: #606266;
-  line-height: 1.6;
-}
-
-.install-list {
-  margin: 0;
-  padding-left: 20px;
-  text-align: left;
-  font-size: 13px;
-  color: #909399;
-  line-height: 1.8;
 }
 
 /* 任务列表 */
