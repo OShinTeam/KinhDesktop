@@ -400,8 +400,11 @@ onUnmounted(stopPolling)
       </el-button>
     </header>
 
-    <!-- 任务列表 -->
-    <template>
+    <!-- 任务列表。
+         ⚠️ 不能用裸 <template> 包这里：Vue 3 会把没有指令的 <template>
+         编译成原生 HTML <template> 元素，其内容是惰性的、永不显示 ——
+         症状就是「下载任务后端一切正常但列表永远空白」 -->
+    <div>
       <div v-if="tasks.length === 0" class="page-placeholder">
         <el-empty :description="t('task_empty', '暂无下载任务')" />
       </div>
@@ -462,7 +465,7 @@ onUnmounted(stopPolling)
           </div>
         </li>
       </ul>
-    </template>
+    </div>
 
     <!-- 新建任务弹窗（带高级选项） -->
     <el-dialog

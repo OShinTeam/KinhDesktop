@@ -47,6 +47,9 @@ var (
 	// downloadSubmitMu 提交串行锁：查重（磁盘+台账）与台账追加需原子完成，
 	// 避免并发提交同名文件时双双通过检查
 	downloadSubmitMu sync.Mutex
+
+	// downloadListRequested 是否已记录过「下载列表首次被请求」的日志（只打一次）
+	downloadListRequested bool
 )
 
 // nextDownloadSeq 分配任务序号（须持有 downloadMu）
@@ -195,11 +198,18 @@ func (a *App) SubmitDownload(url, fileName string, fsID int64) *DownloadSubmitRe
 	return result
 }
 
-// GetDownloadTasks 返回任务列表（台账元数据 + 组件实时状态合并）
+// GetDownloadTasks 返回任务列表（台账元数据 + 引擎实时状态合并）
 func (a *App) GetDownloadTasks() []map[string]interface{} {
 	downloadMu.Lock()
 	tasks := append([]downloadTaskEntry(nil), downloadTasks...)
 	downloadMu.Unlock()
+
+	// 首次被请求时留一行日志：用于区分「前端没在轮询」与「轮询了但拿不到数据」，
+	// 之后静默以免每秒刷屏
+	if !downloadListRequested {
+		downloadListRequested = true
+		global.Log.Infof("下载列表首次被请求，当前台账 %d 条", len(tasks))
+	}
 
 	maxRetries := getSettings().DownloadMaxRetries
 	list := make([]map[string]interface{}, 0, len(tasks))

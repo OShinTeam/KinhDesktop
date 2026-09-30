@@ -94,7 +94,7 @@ export function GetBaiduQuota(): $CancellablePromise<$models.BaiduQuotaInfo | nu
 }
 
 /**
- * GetDownloadTasks 返回任务列表（台账元数据 + 组件实时状态合并）
+ * GetDownloadTasks 返回任务列表（台账元数据 + 引擎实时状态合并）
  */
 export function GetDownloadTasks(): $CancellablePromise<({ [_ in string]?: any } | null)[] | null> {
     return $Call.ByID(1351277853);
