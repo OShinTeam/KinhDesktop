@@ -8,7 +8,7 @@
         AllowPromptForPassword="false">
     </Settings>
     <Installer
-        Path="kinh-desktop.exe"
+        Path="KinhDesktop.exe"
         Arguments=""
         InstallLocation="C:\Program Files\OshinTeam\KinhDesktop">
     </Installer>
@@ -28,7 +28,7 @@
                 Id="com.oshinteam.kinhdesktop"
                 Description="KinhWeb 桌面客户端"
                 DisplayName="KinhDesktop"
-                ExecutableName="kinh-desktop.exe"
+                ExecutableName="KinhDesktop.exe"
                 EntryPoint="Windows.FullTrustApplication">
                 
             </Application>
@@ -47,7 +47,7 @@
             <Logo>Assets\AppIcon.png</Logo>
         </Properties>
     </PackageInformation>
-    <SaveLocation PackagePath="kinh-desktop.msix" />
+    <SaveLocation PackagePath="KinhDesktop.msix" />
     <PackageIntegrity>
         <CertificatePath></CertificatePath>
     </PackageIntegrity>

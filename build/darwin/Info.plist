@@ -7,10 +7,10 @@
         <key>CFBundleName</key>
             <string>KinhDesktop</string>
         <!-- 必须与 build/darwin/Taskfile.yml 里 create:app:bundle 复制进
-             Contents/MacOS 的文件名一致（即 APP_NAME = kinh-desktop，无扩展名），
+             Contents/MacOS 的文件名一致（即 APP_NAME = KinhDesktop，无扩展名），
              否则 .app 启动时找不到可执行文件 -->
         <key>CFBundleExecutable</key>
-            <string>kinh-desktop</string>
+            <string>KinhDesktop</string>
         <key>CFBundleIdentifier</key>
             <string>com.oshinteam.kinhdesktop</string>
         <key>CFBundleVersion</key>

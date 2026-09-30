@@ -183,12 +183,22 @@ jobs:
       # 缺了应用构建会退化成 Docker 交叉编译（runner 上没有 Docker，必失败）。
       - name: Install Linux build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            pkg-config \
-            libgtk-4-dev \
-            libwebkitgtk-6.0-dev
+          # 只装缺的包，且需要时才刷新索引：
+          #  - runner 镜像自带 apt 索引，也常已装好部分依赖 —— 先探测，齐备就整段跳过
+          #  - --no-upgrade 很关键：apt 默认会把依赖链上「已安装的包」一并升级，
+          #    runner 上动辄上百个，既慢又没必要
+          #  - -o Acquire::Languages=none 让 update 跳过翻译文件
+          need=""
+          for p in build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev; do
+            dpkg -s "$p" >/dev/null 2>&1 || need="$need $p"
+          done
+          if [ -z "$need" ]; then
+            echo "依赖已齐备，跳过 apt"
+          else
+            echo "需要安装：$need"
+            sudo apt-get update -qq -o Acquire::Languages=none
+            sudo apt-get install -y --no-install-recommends --no-upgrade $need
+          fi
 
       - name: Install wails3 CLI
         run: |
@@ -257,12 +267,22 @@ jobs:
       # Android 打包本身用不到 GTK，但装 CLI 这一步躲不开。
       - name: Install Linux build dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            build-essential \
-            pkg-config \
-            libgtk-4-dev \
-            libwebkitgtk-6.0-dev
+          # 只装缺的包，且需要时才刷新索引：
+          #  - runner 镜像自带 apt 索引，也常已装好部分依赖 —— 先探测，齐备就整段跳过
+          #  - --no-upgrade 很关键：apt 默认会把依赖链上「已安装的包」一并升级，
+          #    runner 上动辄上百个，既慢又没必要
+          #  - -o Acquire::Languages=none 让 update 跳过翻译文件
+          need=""
+          for p in build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev; do
+            dpkg -s "$p" >/dev/null 2>&1 || need="$need $p"
+          done
+          if [ -z "$need" ]; then
+            echo "依赖已齐备，跳过 apt"
+          else
+            echo "需要安装：$need"
+            sudo apt-get update -qq -o Acquire::Languages=none
+            sudo apt-get install -y --no-install-recommends --no-upgrade $need
+          fi
 
       - name: Install wails3 CLI
         run: |
@@ -285,7 +305,14 @@ jobs:
       - name: Sync version from tag
         run: bash build/ci/set-version.sh
 
-      # 默认 ARCH=arm64，覆盖真机；x86_64 模拟器包不在发布范围内
+      # 默认 ARCH=arm64，覆盖真机；x86_64 模拟器包不在发布范围内。
+      #
+      # 构建日志里会出现下面这类警告，**属已知无害噪音，不用管**：
+      #   gcc_android.c: fatal error: android/log.h: No such file or directory
+      #   could not import C (no metadata for C)   ← runtime/cgo、net/cgo_android.go 等
+      # 原因是 `wails3 generate bindings -tags android` 在 Linux 宿主上分析包，
+      # 用宿主 gcc 去编译带 android tag 的 cgo 代码，必然找不到 NDK 的头文件。
+      # 只要日志里出现 "Processed: ... Packages, ... Methods" 就说明 bindings 已生成成功。
       - name: Build APK
         run: wails3 task android:package
 

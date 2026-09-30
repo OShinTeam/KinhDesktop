@@ -7,7 +7,7 @@
         <key>CFBundleName</key>
             <string>KinhDesktop</string>
         <key>CFBundleExecutable</key>
-            <string>kinh-desktop</string>
+            <string>KinhDesktop</string>
         <key>CFBundleIdentifier</key>
             <string>com.oshinteam.kinhdesktop</string>
         <key>CFBundleVersion</key>

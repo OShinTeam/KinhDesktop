@@ -19,12 +19,14 @@ Unicode true
 ####
 ## The following information is taken from the wails_tools.nsh file, but they can be overwritten here.
 ####
-## !define INFO_PROJECTNAME    "my-project" # Default "wbprobe"
-## !define INFO_COMPANYNAME    "My Company" # Default "My Company"
-## !define INFO_PRODUCTNAME    "My Product Name" # Default "My Product"
-## !define INFO_PRODUCTVERSION "1.0.0"     # Default "0.1.0"
-## !define INFO_COPYRIGHT      "(c) Now, My Company" # Default "© 2026, My Company"
-###
+## 覆盖 wails_tools.nsh 的模板默认值 —— 那里写死的是 "wbprobe" / "My Company"，
+## 不覆盖的话安装包会输出成 wbprobe-amd64-installer.exe
+!define INFO_PROJECTNAME    "KinhDesktop"
+!define INFO_COMPANYNAME    "OshinTeam"
+!define INFO_PRODUCTNAME    "KinhDesktop"
+!define INFO_PRODUCTVERSION "0.1.0"
+!define INFO_COPYRIGHT      "(c) 2026, OshinTeam"
+####
 ## !define PRODUCT_EXECUTABLE  "Application.exe"      # Default "${INFO_PROJECTNAME}.exe"
 ## !define UNINST_KEY_NAME     "UninstKeyInRegistry"  # Default "${INFO_COMPANYNAME}${INFO_PRODUCTNAME}"
 ####

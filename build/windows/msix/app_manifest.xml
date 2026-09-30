@@ -29,7 +29,7 @@
   </Resources>
   
   <Applications>
-    <Application Id="com.oshinteam.kinhdesktop" Executable="kinh-desktop.exe" EntryPoint="Windows.FullTrustApplication">
+    <Application Id="com.oshinteam.kinhdesktop" Executable="KinhDesktop.exe" EntryPoint="Windows.FullTrustApplication">
       <uap:VisualElements
         DisplayName="KinhDesktop"
         Description="KinhWeb 桌面客户端"
@@ -41,7 +41,7 @@
       </uap:VisualElements>
       
       <Extensions>
-        <desktop:Extension Category="windows.fullTrustProcess" Executable="kinh-desktop.exe" />
+        <desktop:Extension Category="windows.fullTrustProcess" Executable="KinhDesktop.exe" />
         
         
       </Extensions>

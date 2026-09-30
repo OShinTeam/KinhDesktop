@@ -5,6 +5,8 @@
 # 会导致 `wails3 task linux:create:deb` 报
 #   matching "./bin/wbprobe.exe": file does not exist
 
+# 包名保持小写：「Debian 策略」要求包名只能由 a-z0-9+-. 组成，
+# 所以它和 APP_NAME（KinhDesktop）不同 —— 这只是元数据，产物二进制名不受影响
 name: "kinh-desktop"
 arch: ${GOARCH}
 platform: "linux"
@@ -20,12 +22,12 @@ license: "GPL-2.0"
 release: "1"
 
 contents:
-  - src: "./bin/kinh-desktop"
-    dst: "/usr/local/bin/kinh-desktop"
+  - src: "./bin/KinhDesktop"
+    dst: "/usr/local/bin/KinhDesktop"
   - src: "./build/appicon.png"
-    dst: "/usr/share/icons/hicolor/128x128/apps/kinh-desktop.png"
-  - src: "./build/linux/kinh-desktop.desktop"
-    dst: "/usr/share/applications/kinh-desktop.desktop"
+    dst: "/usr/share/icons/hicolor/128x128/apps/KinhDesktop.png"
+  - src: "./build/linux/KinhDesktop.desktop"
+    dst: "/usr/share/applications/KinhDesktop.desktop"
 
 # Default dependencies for the GTK4 + WebKitGTK 6.0 stack (Ubuntu 24.04+ / Debian 13+)
 depends:
@@ -49,19 +51,3 @@ overrides:
 # scripts section to ensure desktop database is updated after install
 scripts:
   postinstall: "./build/linux/nfpm/scripts/postinstall.sh"
-
-# If you build your app with -tags gtk3 (legacy WebKit2GTK 4.1 stack — supported through v3.0.x, removed in v3.1),
-# replace the depends/overrides above with these:
-#
-# depends:
-#   - libgtk-3-0
-#   - libwebkit2gtk-4.1-0
-# overrides:
-#   rpm:
-#     depends:
-#       - gtk3
-#       - webkit2gtk4.1
-#   archlinux:
-#     depends:
-#       - gtk3
-#       - webkit2gtk-4.1

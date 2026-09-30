@@ -65,6 +65,10 @@ subst "$root/build/config.yml" "s/^  version: \"[^\"]*\"/  version: \"$version\"
 # 2) Linux 包元数据（deb / rpm / Arch 三者的包版本）
 subst "$root/build/linux/nfpm/nfpm.yaml" "s/^version: \"[^\"]*\"/version: \"$version\"/"
 
+# 3) Windows 安装包版本（NSIS 的 INFO_PRODUCTVERSION）
+subst "$root/build/windows/nsis/project.nsi" \
+  "s/^!define INFO_PRODUCTVERSION +\"[^\"]*\"/!define INFO_PRODUCTVERSION \"$version\"/"
+
 # 2) Windows 可执行文件的文件属性（资源管理器「属性 → 详细信息」里看到的版本）
 subst "$root/build/windows/info.json" \
   "s/(\"file_version\": *)\"[^\"]*\"/\\1\"$version\"/"
