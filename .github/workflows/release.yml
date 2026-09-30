@@ -1,0 +1,272 @@
+name: Release
+
+# 推送 v* 形式的 tag 时触发；也支持手动运行（手动运行只构建、不发布 Release）
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# 版本号的流转（tag v0.2.0 为例）：
+#   build/ci/set-version.sh
+#     ├─ 写 build/config.yml、build/windows/info.json、build/darwin/Info.plist 的版本字段
+#     └─ 导出 APP_VERSION / APP_VERSION_CODE 到 GITHUB_ENV
+#   → 各平台 Taskfile 检测到 APP_VERSION 后，向 -ldflags 注入
+#     -X kinh-desktop/service.AppVersion=0.2.0（链接期覆盖 Go 变量，不改源码）
+#   → Android 的 app/build.gradle 直接读这两个环境变量
+  
+# 创建 Release 并上传产物需要写权限
+permissions:
+  contents: write
+
+# 同一 tag 重复推送时不并发构建，避免产物互相覆盖
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # 必须与 go.mod 里 github.com/wailsapp/wails/v3 的版本保持一致，
+  # 否则 CLI 生成的 bindings 与编译期使用的库版本不一致
+  WAILS3_VERSION: v3.0.0-beta.23
+  NODE_VERSION: '22'
+
+jobs:
+  # ==================== Windows ====================
+  windows:
+    name: Windows (amd64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install wails3 CLI
+        shell: bash
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS3_VERSION}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # NSIS 用来生成安装包（windows:package 默认格式）
+      - name: Install NSIS
+        run: choco install nsis --no-progress -y
+
+      - name: Sync version from tag
+        shell: bash
+        run: bash build/ci/set-version.sh
+
+      # Windows 端 CGO_ENABLED=0，纯 Go 交叉编译，无需 MSYS2/gcc
+      - name: Build installer
+        run: wails3 task windows:package
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: bin/*.exe
+          if-no-files-found: error
+          retention-days: 7
+
+  # ==================== macOS ====================
+  macos:
+    name: macOS (universal)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install wails3 CLI
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS3_VERSION}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Sync version from tag
+        run: bash build/ci/set-version.sh
+
+      # universal = arm64 + amd64，用 lipo 合并，Intel 与 Apple Silicon 都能跑
+      - name: Build universal app bundle
+        run: wails3 task darwin:package:universal
+
+      - name: Create DMG
+        run: |
+          hdiutil create \
+            -volname "KinhDesktop" \
+            -srcfolder "bin/KinhDesktop.app" \
+            -ov -format UDZO \
+            "bin/KinhDesktop.dmg"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: bin/*.dmg
+          if-no-files-found: error
+          retention-days: 7
+
+  # ==================== Linux ====================
+  linux:
+    name: Linux (amd64)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # wails v3 在 Linux 上默认走 GTK4 + WebKitGTK 6.0，需要 Ubuntu 24.04+。
+      # build-essential 提供 CGO 所需的 gcc（缺了会退化成 Docker 交叉编译）。
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            pkg-config \
+            libgtk-4-dev \
+            libwebkitgtk-6.0-dev
+
+      - name: Install wails3 CLI
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS3_VERSION}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Sync version from tag
+        run: bash build/ci/set-version.sh
+
+      # deb/rpm 由 wails3 内置的 nfpm 生成，不需要 dpkg-deb / rpmbuild。
+      # AUR 包面向 Arch 用户仓库，不在此处构建。
+      - name: Build packages
+        run: |
+          wails3 task linux:create:appimage
+          wails3 task linux:create:deb
+          wails3 task linux:create:rpm
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: |
+            bin/*.AppImage
+            bin/*.deb
+            bin/*.rpm
+          if-no-files-found: error
+          retention-days: 7
+
+  # ==================== Android ====================
+  android:
+    name: Android (arm64 APK)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # AGP 8.7.3 与 JDK 21 是稳定组合；JDK 25 下其 lint 任务会崩
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: '21'
+
+      - name: Install wails3 CLI
+        run: |
+          go install github.com/wailsapp/wails/v3/cmd/wails3@${WAILS3_VERSION}
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      # runner 镜像自带 Android SDK 与若干 NDK 版本；Taskfile 会自动选用
+      # 已安装的最新 NDK，仅在完全没有时才补装
+      - name: Ensure Android NDK
+        run: |
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
+          echo "ANDROID_HOME=$SDK"
+          echo "已安装的 NDK:"
+          ls "$SDK/ndk" 2>/dev/null || echo "  (无)"
+          if [ -z "$(ls -A "$SDK/ndk" 2>/dev/null)" ]; then
+            echo "未发现 NDK，安装 26.3.11579264 ..."
+            yes | "$SDK/cmdline-tools/latest/bin/sdkmanager" "ndk;26.3.11579264"
+          fi
+
+      - name: Sync version from tag
+        run: bash build/ci/set-version.sh
+
+      # 默认 ARCH=arm64，覆盖真机；x86_64 模拟器包不在发布范围内
+      - name: Build APK
+        run: wails3 task android:package
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: bin/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  # ==================== 汇总发布 ====================
+  release:
+    name: Publish release
+    needs: [windows, macos, linux, android]
+    # 手动触发时只构建、不发版；也避免在分支上误发
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: List collected files
+        run: ls -lh dist
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+          draft: false

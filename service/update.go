@@ -12,8 +12,13 @@ import (
 
 // ==================== 版本与检查更新（GitHub Releases） ====================
 
-// AppVersion 应用版本号，发布时更新（前端顶栏与设置页均显示此值）
-const AppVersion = "0.1.0"
+// AppVersion 应用版本号（前端顶栏与设置页均显示此值）。
+//
+// 声明为 var 而非 const：发布构建由 CI 通过
+//   -ldflags "-X kinh-desktop/service.AppVersion=<version>"
+// 注入 tag 里的版本号，而 -X 只能覆盖变量，无法覆盖常量。
+// 本机构建没有注入通道，显示下面的默认值。
+var AppVersion = "0.0.0-dev"
 
 // updateCheckRepo GitHub 仓库坐标，Releases 页面为更新源
 const updateCheckRepo = "OshinTeam/KinhDesktop"
