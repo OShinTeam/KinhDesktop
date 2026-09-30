@@ -36,7 +36,9 @@ export function BaiduQRLogin(v: string, rememberLogin: boolean): $CancellablePro
 }
 
 /**
- * CancelDownloadTask 取消任务（保留已下载内容）
+ * CancelDownloadTask 取消任务（保留已下载内容）。
+ * 排队任务尚未提交给引擎，引擎侧必然报 not found —— 语义上等价于「取消成功」，
+ * 前端随后会调 RemoveDownloadTask 把它从台账删掉
  */
 export function CancelDownloadTask(taskID: string): $CancellablePromise<boolean> {
     return $Call.ByID(3870940636, taskID);

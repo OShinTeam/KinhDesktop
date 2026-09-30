@@ -41,6 +41,7 @@ type AppSettings struct {
 	DownloadDir        string `json:"download_dir"`         // 默认下载目录
 	DownloadAccLink    string `json:"download_acc_link"`    // 远程解析加速链接（留空仅本地解析）
 	DownloadMaxRetries int    `json:"download_max_retries"` // 下载失败自动重试次数（0 表示不重试）
+	DownloadMaxActive  int    `json:"download_max_active"`  // 同时下载文件数上限（超出部分排队）
 	// 其他
 	LogLevel string `json:"log_level"` // 日志等级：debug/info/warn/error
 }
@@ -54,6 +55,9 @@ const DefaultChunkKB = 500
 // DefaultMaxRetries 下载失败自动重试次数默认值
 const DefaultMaxRetries = 3
 
+// DefaultMaxActive 同时下载文件数默认上限
+const DefaultMaxActive = 2
+
 // DefaultSettings 返回默认设置（线程数、UA、下载目录取常见默认值）
 func DefaultSettings() *AppSettings {
 	return &AppSettings{
@@ -64,6 +68,7 @@ func DefaultSettings() *AppSettings {
 		DownloadChunkKB:    DefaultChunkKB,
 		DownloadDir:        defaultDownloadDir(),
 		DownloadMaxRetries: DefaultMaxRetries,
+		DownloadMaxActive:  DefaultMaxActive,
 		LogLevel:           "info",
 	}
 }
@@ -218,6 +223,11 @@ func (a *App) SaveSettings(settings AppSettings) string {
 	settings.DownloadChunkKB = clampInt(settings.DownloadChunkKB, 64, 1024*1024)
 	// 失败自动重试次数：0 ~ 10 次
 	settings.DownloadMaxRetries = clampInt(settings.DownloadMaxRetries, 0, 10)
+	// 同时下载文件数：1 ~ 10 个（0 视为未设置，回落默认值 2）
+	if settings.DownloadMaxActive <= 0 {
+		settings.DownloadMaxActive = DefaultMaxActive
+	}
+	settings.DownloadMaxActive = clampInt(settings.DownloadMaxActive, 1, 10)
 	if strings.TrimSpace(settings.DownloadDir) == "" {
 		settings.DownloadDir = defaultDownloadDir()
 	}

@@ -53,6 +53,11 @@ export interface AppSettings {
     "download_max_retries": number;
 
     /**
+     * 同时下载文件数上限（超出部分排队）
+     */
+    "download_max_active": number;
+
+    /**
      * 其他
      * 日志等级：debug/info/warn/error
      */
@@ -194,6 +199,12 @@ export interface DownloadSubmitResult {
     "success": boolean;
     "task_id": string;
     "message"?: string;
+
+    /**
+     * Queued 任务因并发上限进入排队（TaskID 是 queued-<seq> 占位符，
+     * 引擎侧真实 taskID 在调度器递补时才生成）
+     */
+    "queued"?: boolean;
 }
 
 /**

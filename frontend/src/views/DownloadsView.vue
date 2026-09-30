@@ -72,6 +72,7 @@ function statusLabel(status) {
     FAILED: t('task_status_failed', '失败'),
     PAUSED: t('task_status_paused', '已暂停'),
     RETRYING: t('task_status_retrying', '重试中'),
+    QUEUED: t('task_status_queued', '排队中'),
   }
   return map[status] || status || '-'
 }
@@ -83,6 +84,7 @@ function statusType(status) {
     case 'FAILED': return 'danger'
     case 'PAUSED': return 'info'
     case 'RETRYING': return 'warning'
+    case 'QUEUED': return 'info'
     default: return 'warning'
   }
 }
@@ -139,8 +141,12 @@ function clearRetryState(seq) {
   delete retryCount.value[seq]
 }
 
-// 状态展示：自动重试进行中的失败任务显示"重试中"而非"失败"
+// 状态展示：自动重试进行中的失败任务显示"重试中"而非"失败"；
+// 排队任务（并发上限已满）显示"排队中"
 function displayStatus(task) {
+  if (task.queued) {
+    return 'QUEUED'
+  }
   if (task.status === 'FAILED' && retryingSeqs.value.has(task.seq)) {
     return 'RETRYING'
   }

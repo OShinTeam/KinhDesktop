@@ -28,6 +28,9 @@ type DownloadSubmitResult struct {
 	Success bool   `json:"success"`
 	TaskID  string `json:"task_id"`
 	Message string `json:"message,omitempty"`
+	// Queued 任务因并发上限进入排队（TaskID 是 queued-<seq> 占位符，
+	// 引擎侧真实 taskID 在调度器递补时才生成）
+	Queued bool `json:"queued,omitempty"`
 }
 
 // downloadTaskStore 本地任务台账（task_id → 元数据），组件侧保存完整状态
@@ -37,6 +40,9 @@ type downloadTaskEntry struct {
 	FileName string    `json:"file_name"`
 	URL      string    `json:"url"`
 	Created  time.Time `json:"created_at"`
+	// Queued 任务因「同时下载文件数」达到上限而排队：尚未提交给引擎（TaskID 为空），
+	// 由调度器在有空位时按入队顺序自动提交
+	Queued bool `json:"queued"`
 }
 
 var (
@@ -106,18 +112,53 @@ func dedupeFileName(outputDir, name string, activeNames map[string]bool) string 
 	}
 }
 
+// maxActiveDownloads 同时下载文件数上限（设置 download_max_active，已规范化 ≥1）
+func maxActiveDownloads() int {
+	return getSettings().DownloadMaxActive
+}
+
+// engineActiveCount 引擎侧活动任务数（占用并发名额的状态）
+func engineActiveCount() int {
+	n := 0
+	downloadMu.Lock()
+	entries := append([]downloadTaskEntry(nil), downloadTasks...)
+	downloadMu.Unlock()
+	for _, e := range entries {
+		if !e.Queued && downloadTaskActive(e.TaskID) {
+			n++
+		}
+	}
+	return n
+}
+
+// enqueueDownload 把任务加入排队台账（须持有 downloadSubmitMu）
+func enqueueDownload(fileName, url string) *downloadTaskEntry {
+	downloadMu.Lock()
+	defer downloadMu.Unlock()
+	entry := downloadTaskEntry{
+		Seq:      nextDownloadSeq(),
+		FileName: fileName,
+		URL:      url,
+		Created:  time.Now(),
+		Queued:   true,
+	}
+	downloadTasks = append(downloadTasks, entry)
+	return &downloadTasks[len(downloadTasks)-1]
+}
+
 // resolveUniqueDownloadName 提交前文件名去重（须持有 downloadSubmitMu）：
 //   - 文件名已知：与磁盘文件或活动任务重名时自动重命名 name(1).ext
 //   - 文件名未知（组件 probe 后才知晓）：存在同 URL 活动任务时显性报错，拒绝创建
 //
-// 返回最终文件名（未知时为空串）与冲突提示（无冲突为空）
+// 返回最终文件名（未知时为空串）与冲突提示（无冲突为空）。
+// 排队中的任务不占用输出文件，不参与「活动任务」查重。
 func resolveUniqueDownloadName(outputDir, name, rawURL string) (finalName string, conflict string) {
 	downloadMu.Lock()
 	defer downloadMu.Unlock()
 
 	if strings.TrimSpace(name) == "" {
 		for _, entry := range downloadTasks {
-			if entry.URL == rawURL && downloadTaskActive(entry.TaskID) {
+			if !entry.Queued && entry.URL == rawURL && downloadTaskActive(entry.TaskID) {
 				return "", "已存在相同文件的下载任务（文件名待识别，无法自动重命名），请等待其完成或先移除原任务"
 			}
 		}
@@ -126,11 +167,79 @@ func resolveUniqueDownloadName(outputDir, name, rawURL string) (finalName string
 
 	taken := make(map[string]bool)
 	for _, entry := range downloadTasks {
-		if entry.FileName != "" && downloadTaskActive(entry.TaskID) {
+		if !entry.Queued && entry.FileName != "" && downloadTaskActive(entry.TaskID) {
 			taken[strings.ToLower(entry.FileName)] = true
 		}
 	}
 	return dedupeFileName(outputDir, name, taken), ""
+}
+
+// DispatchQueuedDownloads 调度器：按入队顺序把排队任务递补到引擎，直到填满并发名额。
+// 调用时机：新任务入队后、以及每次轮询发现某任务离开活动态时（完成/失败/被移除）。
+// 成功递补的条目会换成引擎返回的真实 taskID。
+func DispatchQueuedDownloads() {
+	for {
+		downloadSubmitMu.Lock()
+
+		if engineActiveCount() >= maxActiveDownloads() {
+			downloadSubmitMu.Unlock()
+			return
+		}
+
+		// 取最早入队的排队任务
+		downloadMu.Lock()
+		idx := -1
+		for i := range downloadTasks {
+			if downloadTasks[i].Queued {
+				idx = i
+				break
+			}
+		}
+		var entry downloadTaskEntry
+		if idx >= 0 {
+			entry = downloadTasks[idx]
+		}
+		downloadMu.Unlock()
+
+		if idx < 0 {
+			// 没有排队任务了
+			downloadSubmitMu.Unlock()
+			return
+		}
+
+		config := buildDownloadConfig(
+			getSettings().DownloadDir, effectiveDownloadUA(),
+			getSettings().DownloadThreads, getSettings().DownloadChunkKB)
+
+		taskID, err := downloadEngine().SubmitDownload(entry.URL, config, nil)
+		if err != nil && taskID == "" {
+			// 提交失败（协议不支持等）：保留排队状态，错误信息透出到任务条目，
+			// 不再自动重试 —— 避免坏 URL 每次轮询都白提交一次
+			downloadMu.Lock()
+			if downloadTasks[idx].Queued && downloadTasks[idx].Seq == entry.Seq {
+				downloadTasks[idx].Queued = false
+				downloadTasks[idx].TaskID = ""
+			}
+			downloadMu.Unlock()
+			global.Log.Errorf("排队任务提交失败: %s (%s): %v", entry.FileName, entry.URL, err)
+			downloadSubmitMu.Unlock()
+			continue
+		}
+
+		// 提交成功：台账条目从排队态转为引擎态
+		downloadMu.Lock()
+		if downloadTasks[idx].Queued && downloadTasks[idx].Seq == entry.Seq {
+			downloadTasks[idx].TaskID = taskID
+			downloadTasks[idx].Queued = false
+		} else {
+			// 条目在排队期间被移除：撤回引擎侧任务，防孤儿下载
+			downloadEngine().CancelTask(taskID)
+			downloadEngine().RemoveTask(taskID)
+		}
+		downloadMu.Unlock()
+		downloadSubmitMu.Unlock()
+		global.Log.Infof("排队任务已开始下载: %s (%s)", entry.FileName, taskID)
+	}
 }
 
 // SubmitDownload 解析并提交下载任务（组件存在时可用）
@@ -168,6 +277,17 @@ func (a *App) SubmitDownload(url, fileName string, fsID int64) *DownloadSubmitRe
 	fileName = finalName
 
 	config := buildDownloadConfig(settings.DownloadDir, effectiveDownloadUA(), settings.DownloadThreads, settings.DownloadChunkKB)
+
+	// 并发上限：活动任务已满时转入排队（不占引擎名额），由调度器递补
+	if engineActiveCount() >= maxActiveDownloads() {
+		entry := enqueueDownload(fileName, url)
+		downloadSubmitMu.Unlock()
+		result.Success = true
+		result.Queued = true
+		result.TaskID = fmt.Sprintf("queued-%d", entry.Seq)
+		global.Log.Infof("并发已满(%d)，任务排队: %s (seq=%d)", maxActiveDownloads(), fileName, entry.Seq)
+		return result
+	}
 
 	// fileName 无法透传给引擎：types.DownloadConfig 没有文件名字段，Engine.SubmitDownload
 	// 一律按 URL 推导、probe 完成后再用 Content-Disposition 覆盖。因此上面经过
@@ -221,6 +341,13 @@ func (a *App) GetDownloadTasks() []map[string]interface{} {
 			"url":         entry.URL,
 			"created_at":  entry.Created.Format(time.RFC3339),
 			"max_retries": maxRetries,
+			"queued":      entry.Queued,
+		}
+		if entry.Queued {
+			// 排队任务：无引擎状态，补一个固定状态字段供前端展示
+			item["status"] = "QUEUED"
+			list = append(list, item)
+			continue
 		}
 		// 透传组件状态：失败/组件侧任务丢失时保留台账元数据
 		if statusJSON := oshindTaskStatus(entry.TaskID); statusJSON != "" {
@@ -245,12 +372,35 @@ func (a *App) GetDownloadTasks() []map[string]interface{} {
 		}
 		list = append(list, item)
 	}
+
+	// 有任务离开活动态（完成/失败）且存在排队任务时，递补下一个。
+	// 放在列表读取路径上避免引入额外 goroutine/定时器；engineActiveCount 的
+	// 判断很轻（缓存台账 + 状态查引擎），空转开销可忽略
+	if len(downloadTasks) > 0 {
+		hasQueued := false
+		downloadMu.Lock()
+		for _, e := range downloadTasks {
+			if e.Queued {
+				hasQueued = true
+				break
+			}
+		}
+		downloadMu.Unlock()
+		if hasQueued {
+			go DispatchQueuedDownloads()
+		}
+	}
 	return list
 }
 
-// CancelDownloadTask 取消任务（保留已下载内容）
+// CancelDownloadTask 取消任务（保留已下载内容）。
+// 排队任务尚未提交给引擎，引擎侧必然报 not found —— 语义上等价于「取消成功」，
+// 前端随后会调 RemoveDownloadTask 把它从台账删掉
 func (a *App) CancelDownloadTask(taskID string) bool {
 	if err := downloadEngine().CancelTask(taskID); err != nil {
+		if strings.HasPrefix(taskID, "queued-") {
+			return true
+		}
 		global.Log.Warnf("取消下载任务失败: %v", err)
 		return false
 	}
@@ -313,6 +463,18 @@ func (a *App) RemoveDownloadTask(taskID string, deleteFiles bool) map[string]int
 		return result
 	}
 	result["task_removed"] = true
+
+	// 排队任务未提交给引擎，台账移除即完成；有排队任务时顺便触发一次调度
+	if entry.Queued {
+		global.Log.Infof("排队任务已移除: %s (seq=%d)", entry.FileName, entry.Seq)
+		go DispatchQueuedDownloads()
+		if deleteFiles {
+			// 排队任务从未落盘，无产物可删
+			result["files_deleted"] = false
+		}
+		result["success"] = true
+		return result
+	}
 
 	// 引擎侧取消 + 移除（RemoveTask 内部亦会 cancel，此处 CancelTask 先行确保运行中任务停止）
 	engine := downloadEngine()
@@ -438,6 +600,17 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 	}
 	if opts.SkipTLSVerify && config.TLSConfig != nil {
 		config.TLSConfig.InsecureSkipVerify = true
+	}
+
+	// 并发上限：活动任务已满时转入排队（不占引擎名额），由调度器递补
+	if engineActiveCount() >= maxActiveDownloads() {
+		entry := enqueueDownload(opts.FileName, opts.URL)
+		downloadSubmitMu.Unlock()
+		result.Success = true
+		result.Queued = true
+		result.TaskID = fmt.Sprintf("queued-%d", entry.Seq)
+		global.Log.Infof("并发已满(%d)，任务排队: %s (seq=%d)", maxActiveDownloads(), opts.FileName, entry.Seq)
+		return result
 	}
 
 	// opts.FileName 同样无法透传给引擎，原因见 SubmitDownload 中的说明

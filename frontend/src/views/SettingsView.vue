@@ -37,6 +37,7 @@ const form = reactive({
   download_dir: '',
   download_acc_link: '',
   download_max_retries: 3,
+  download_max_active: 2,
   log_level: 'info'
 })
 
@@ -62,6 +63,7 @@ function serializeForm() {
     form.download_dir,
     form.download_acc_link,
     form.download_max_retries,
+    form.download_max_active,
     form.log_level,
   ])
 }
@@ -119,6 +121,10 @@ async function loadSettings() {
     // 旧设置文件无重试字段时回退默认值（后端已落默认 3，此处兜底 undefined）
     if (form.download_max_retries === undefined || form.download_max_retries === null) {
       form.download_max_retries = 3
+    }
+    // 旧设置文件无并发上限字段时回退默认值
+    if (form.download_max_active === undefined || form.download_max_active === null) {
+      form.download_max_active = 2
     }
     langOptions.value = (langs || []).map(l => ({
       value: l.language_code,
@@ -339,6 +345,22 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
             v-model="form.download_max_retries"
             class="setting-control"
             :min="0"
+            :max="10"
+            :step="1"
+            step-strictly
+          />
+        </div>
+
+        <!-- 同时下载文件数：超出的任务排队等待，完成一个自动开始下一个 -->
+        <div class="setting-row">
+          <div class="setting-info">
+            <div class="setting-label">{{ t('settings_max_active', '同时下载文件数') }}</div>
+            <div class="setting-desc">{{ t('settings_max_active_desc', '超出上限的任务会排队等待，有任务完成后自动开始下一个') }}</div>
+          </div>
+          <el-input-number
+            v-model="form.download_max_active"
+            class="setting-control"
+            :min="1"
             :max="10"
             :step="1"
             step-strictly
