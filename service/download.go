@@ -538,31 +538,68 @@ func (a *App) RemoveDownloadTask(taskID string, deleteFiles bool) map[string]int
 		return result
 	}
 
-	// 引擎侧取消 + 移除（RemoveTask 内部亦会 cancel，此处 CancelTask 先行确保运行中任务停止）
+	// 引擎侧取消 + 移除（RemoveTask 内部亦会 cancel，此处 CancelTask 先行确保运行中任务停止）。
+	// ⚠️ 删除产物前必须先从引擎取实际输出路径（RemoveTask 会清理 task 引用，之后拿不到）：
+	// 台账里的文件名（用户指定 / 去重重命名）传不进引擎，引擎按 URL 推导 +
+	// Content-Disposition 覆盖自行写盘，实际落盘名可能与台账名完全不同 ——
+	// 用台账名拼路径会删到不存在的文件，这正是「勾选删除但 tmp/oshin 还在」的根因
 	engine := downloadEngine()
+	engineBase := "" // 引擎侧实际输出路径（不含 .tmp/.oshin 后缀）
+	if task, ok := engine.GetTask(taskID); ok {
+		switch {
+		case task.OutputPath != "":
+			engineBase = task.OutputPath
+		case task.FileName != "" && task.Config != nil && task.Config.OutputDir != "":
+			engineBase = filepath.Join(task.Config.OutputDir, task.FileName)
+		}
+	}
 	cancelled := engine.CancelTask(taskID) == nil
 	if engine.RemoveTask(taskID) {
 		cancelled = true
 	}
 	global.Log.Infof("下载任务已移除: %s (%s) 引擎侧停止=%v", entry.FileName, taskID, cancelled)
 
-	// 删除下载产物（成品 / .tmp / .oshin）
+	// 删除下载产物（成品 / .tmp / .oshin）。
+	// 候选 = 引擎实际路径三件套 + 台账名三件套（都尝试，幂等）。
+	// Windows 上引擎取消后写 goroutine 释放文件句柄有延迟，失败做短暂重试
 	if deleteFiles {
-		deleted := false
+		candidates := make(map[string]bool)
+		for _, base := range []string{engineBase} {
+			if base != "" {
+				candidates[base] = true
+			}
+		}
 		if entry.URL != "" {
-			// 成品名优先台账记录（用户指定或 probe 回填），无记录时从 URL 提取兜底
 			name := entry.FileName
 			if name == "" {
 				name = fileNameFromURL(entry.URL)
 			}
 			if name != "" {
-				outputPath := filepath.Join(downloadDirForTask(entry), name)
-				for _, p := range []string{outputPath, outputPath + ".tmp", outputPath + ".oshin"} {
+				legacyBase := filepath.Join(downloadDirForTask(entry), name)
+				candidates[legacyBase] = true
+			}
+		}
+
+		deleted := false
+		var lastErr error
+		for base := range candidates {
+			for _, p := range []string{base, base + ".tmp", base + ".oshin"} {
+				for attempt := 0; attempt < 3; attempt++ {
 					if err := os.Remove(p); err == nil {
 						deleted = true
+						break
+					} else if attempt == 2 {
+						lastErr = err
+					} else if _, statErr := os.Stat(p); statErr != nil {
+						break // 文件本就不存在，无需重试
+					} else {
+						time.Sleep(150 * time.Millisecond) // 句柄未及时释放，稍后重试
 					}
 				}
 			}
+		}
+		if !deleted && lastErr != nil {
+			global.Log.Warnf("删除下载产物失败（已尝试 %d 个候选路径）: %v", len(candidates), lastErr)
 		}
 		result["files_deleted"] = deleted
 	}
