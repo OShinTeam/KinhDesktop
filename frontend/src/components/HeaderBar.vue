@@ -1,20 +1,27 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Minus, FullScreen, Close } from '@element-plus/icons-vue'
 import { App } from '../../bindings/kinh-desktop/service'
 import { usePlatform } from '../composables/usePlatform'
 import appIcon from '../assets/appicon.png'
 
 // v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
-const { WindowMinimise, WindowToggleMaximise, WindowClose } = App
+const { WindowMinimise, WindowToggleMaximise, WindowClose, GetAppVersion } = App
 
 // 移动端（Android / iOS）没有窗口边框的概念：
 // 窗口控制按钮整块不渲染，标题栏拖拽与双击最大化也一并禁用。
 // 平台信息由 App.vue 启动时异步初始化，此处只读状态（详见 usePlatform）
 const { isMobile } = usePlatform()
 
-// 版本号集中定义，与应用图标一起在顶栏展示
-const appVersion = ref('v0.1.0')
+// 版本号唯一来源是后端：编译期由 `-ldflags -X .../service.AppVersion` 注入 tag 版本
+// （见 service/update.go）。前端不要硬编码，否则发版后会与实际版本脱节。
+const appVersion = ref('')
+
+onMounted(() => {
+  GetAppVersion()
+    .then(v => { appVersion.value = v ? 'v' + v : '' })
+    .catch(() => { appVersion.value = '' })
+})
 
 // 双击标题栏最大化：移动端无此交互，避免双击缩放时误触发
 function onTitleBarDblClick() {

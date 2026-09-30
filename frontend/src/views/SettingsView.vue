@@ -393,7 +393,7 @@ defineExpose({ checkDirty, discardChanges, saveAndReturn })
         <div class="setting-row about-row">
           <div class="setting-info">
             <div class="setting-label">{{ t('settings_version', '当前版本') }}</div>
-            <div class="setting-desc">KinhDesktop {{ appVersion }}</div>
+            <div class="setting-desc">KinhDesktop {{ appVersion ? 'v' + appVersion : '' }}</div>
           </div>
           <div class="setting-control about-control">
             <el-button :loading="checking" @click="handleCheckUpdate">
