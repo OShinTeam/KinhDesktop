@@ -132,9 +132,8 @@ jobs:
 
       - name: Create DMG
         run: |
-          # .app 的名字取自顶层 Taskfile 的 APP_NAME（kinh-desktop），
-          # 不是 config.yml 里的 productName（KinhDesktop）—— 这里动态查找，
-          # 避免以后 APP_NAME 变化时又对不上
+          # .app 的名字来自顶层 Taskfile 的 APP_NAME（现为 KinhDesktop），
+          # 这里用通配查找而不是写死，避免以后 APP_NAME 再变时又对不上
           APP_BUNDLE=$(ls -d bin/*.app 2>/dev/null | head -1)
           if [ -z "$APP_BUNDLE" ]; then
             echo "未找到 .app，bin/ 实际内容：" >&2
@@ -146,7 +145,7 @@ jobs:
             -volname "KinhDesktop" \
             -srcfolder "$APP_BUNDLE" \
             -ov -format UDZO \
-            "bin/kinh-desktop.dmg"
+            "bin/KinhDesktop.dmg"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
