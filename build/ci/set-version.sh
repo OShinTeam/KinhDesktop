@@ -70,7 +70,7 @@ subst "$root/build/windows/nsis/project.nsi" \
   "s/^!define INFO_PRODUCTVERSION +\"[^\"]*\"/!define INFO_PRODUCTVERSION \"$version\"/"
 
 # 4) 前端包版本（仅为保持一致，构建产物不依赖它）
-subst "$root/frontend/package.json" "s/^  \"version\": \"[^\"]*\",/  \"version\": \"$version\","
+subst "$root/frontend/package.json" "s/^  \"version\": \"[^\"]*\",/  \"version\": \"$version\",/"
 
 # 2) Windows 可执行文件的文件属性（资源管理器「属性 → 详细信息」里看到的版本）
 subst "$root/build/windows/info.json" \
