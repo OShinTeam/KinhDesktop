@@ -3,7 +3,6 @@ import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { RefreshRight } from '@element-plus/icons-vue'
 import { useI18n } from '../composables/useI18n'
-import { usePlatform } from '../composables/usePlatform'
 import { useViewport } from '../composables/useViewport'
 import { App } from '../../bindings/kinh-desktop/service'
 
@@ -19,19 +18,26 @@ const {
 
 const { t } = useI18n()
 
-const { isMobile } = usePlatform()
 const { isSmallScreen } = useViewport()
 
-// 手机端隐藏扫码登录：扫码需要另一台设备配合，在手机上没意义。
-// 判定条件是「移动平台 + 小屏」——平板等大屏移动设备短边 >= 600，扫码照常显示。
-const showQR = computed(() => !(isMobile.value && isSmallScreen.value))
+// 小屏（视口短边 < 600px）隐藏扫码登录。
+//
+// 扫码的前提是「手边还有另一台设备」，屏幕小到这个程度时该前提基本不成立 ——
+// 不管它是手机，还是被拉窄/拉高的桌面窗口。此时默认落到手机号登录。
+//
+// 用尺寸而非平台判定，还有一个可靠性上的好处：useViewport 是同步的，
+// 且跟随 resize / orientationchange 实时更新；而 isMobile 要等
+// System.Environment() 异步返回，拿不到时会退化成桌面端、把扫码又显示出来。
+//
+// 平板等大屏设备（短边 >= 600）扫码照常显示。
+const showQR = computed(() => !isSmallScreen.value)
 
 // 登录成功后向父组件抛出凭证
 const emit = defineEmits(['login-success'])
 
 // 当前视图：qr（扫码）| sms（手机号）| cookie
-// 默认扫码；手机端扫码被隐藏时会由 watch 切到手机号登录
-const activeTab = ref('qr')
+// 小屏下扫码被隐藏，直接默认落到手机号登录；大屏才默认扫码
+const activeTab = ref(isSmallScreen.value ? 'sms' : 'qr')
 
 // 记住登录：登录成功后保存登录信息到本地（默认勾选）
 const rememberLogin = ref(true)

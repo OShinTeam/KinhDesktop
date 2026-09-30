@@ -16,7 +16,8 @@ export const isPortrait = ref(false)
 //
 // 用短边而非宽度：手机横屏时宽度会到 800+，按宽度判会把横屏手机误当成平板。
 // 手机短边普遍在 360~430，平板的短边通常在 600 以上，600 这条线能把两者分开。
-// 用途见 LoginView：移动端小屏隐藏扫码登录（扫码需要另一台设备配合，在手机上没意义）。
+// 用途见 LoginView：小屏隐藏扫码登录（扫码的前提是「手边还有另一台设备」，
+// 屏幕小到这个程度就不成立了），此时默认落到手机号登录。
 export const isSmallScreen = ref(false)
 
 function syncViewport() {
