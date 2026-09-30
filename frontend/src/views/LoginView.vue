@@ -1,19 +1,36 @@
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import { RefreshRight } from '@element-plus/icons-vue'
 import { useI18n } from '../composables/useI18n'
+import { usePlatform } from '../composables/usePlatform'
+import { useViewport } from '../composables/useViewport'
 import { App } from '../../bindings/kinh-desktop/service'
 
 // v3 的绑定按服务（命名空间）导出，这里解构回扁平函数，沿用原有的调用写法
-const { GetBaiduQR, PollBaiduQR, BaiduQRLogin, LoginWithCookie } = App
+const {
+  GetBaiduQR,
+  PollBaiduQR,
+  BaiduQRLogin,
+  LoginWithCookie,
+  SendBaiduSMSCode,
+  LoginWithBaiduSMS,
+} = App
 
 const { t } = useI18n()
+
+const { isMobile } = usePlatform()
+const { isSmallScreen } = useViewport()
+
+// 手机端隐藏扫码登录：扫码需要另一台设备配合，在手机上没意义。
+// 判定条件是「移动平台 + 小屏」——平板等大屏移动设备短边 >= 600，扫码照常显示。
+const showQR = computed(() => !(isMobile.value && isSmallScreen.value))
 
 // 登录成功后向父组件抛出凭证
 const emit = defineEmits(['login-success'])
 
-// 当前视图：qr（扫码，默认）| cookie
+// 当前视图：qr（扫码）| sms（手机号）| cookie
+// 默认扫码；手机端扫码被隐藏时会由 watch 切到手机号登录
 const activeTab = ref('qr')
 
 // 记住登录：登录成功后保存登录信息到本地（默认勾选）
@@ -147,12 +164,124 @@ async function handleCookieLogin() {
   }
 }
 
+// ==================== 手机号登录 ====================
+const smsForm = ref({ phone: '', code: '' })
+const smsSending = ref(false)
+const smsLoading = ref(false)
+const smsCountdown = ref(0)
+// 图形验证码：仅在百度风控要求时出现，由发送接口回传
+const vcode = ref({ need: false, image: '', input: '', str: '', sign: '' })
+
+let countdownTimer = null
+
+function startCountdown(seconds) {
+  clearInterval(countdownTimer)
+  smsCountdown.value = seconds
+  countdownTimer = setInterval(() => {
+    smsCountdown.value -= 1
+    if (smsCountdown.value <= 0) {
+      clearInterval(countdownTimer)
+      countdownTimer = null
+    }
+  }, 1000)
+}
+
+async function handleSendSMS() {
+  const phone = smsForm.value.phone.trim()
+  if (!/^1\d{10}$/.test(phone)) {
+    ElMessage.warning(t('sms_phone_invalid', '请输入正确的手机号'))
+    return
+  }
+  if (vcode.value.need && !vcode.value.input.trim()) {
+    ElMessage.warning(t('sms_vcode_required', '请输入图片验证码'))
+    return
+  }
+
+  smsSending.value = true
+  try {
+    const res = await SendBaiduSMSCode(
+      phone,
+      vcode.value.input.trim(),
+      vcode.value.str,
+      vcode.value.sign
+    )
+    if (!res) return
+
+    if (res.need_vcode) {
+      // 风控要求图形验证码：展示图片并保留本轮凭证，用户填完再点一次
+      vcode.value.need = true
+      vcode.value.image = res.vcode_image
+      vcode.value.str = res.vcode_str
+      vcode.value.sign = res.vcode_sign
+      vcode.value.input = ''
+      ElMessage.warning(res.message || t('sms_need_vcode', '需要图片验证码，请填写后重试'))
+      return
+    }
+
+    if (res.success) {
+      vcode.value.need = false
+      ElMessage.success(t('sms_sent', '验证码已发送'))
+      startCountdown(60)
+    } else {
+      ElMessage.error(res.message || t('sms_send_failed', '验证码发送失败'))
+    }
+  } catch (err) {
+    ElMessage.error(String(err))
+  } finally {
+    smsSending.value = false
+  }
+}
+
+async function handleSMSLogin() {
+  const phone = smsForm.value.phone.trim()
+  const code = smsForm.value.code.trim()
+  if (!/^1\d{10}$/.test(phone)) {
+    ElMessage.warning(t('sms_phone_invalid', '请输入正确的手机号'))
+    return
+  }
+  if (!code) {
+    ElMessage.warning(t('sms_code_required', '请填写短信验证码'))
+    return
+  }
+
+  smsLoading.value = true
+  try {
+    const result = await LoginWithBaiduSMS(phone, code, rememberLogin.value)
+    if (result && result.success) {
+      loginResult.value = result
+      ElMessage.success(t('login_success', '登录成功'))
+      emit('login-success', result)
+    } else {
+      ElMessage.error((result && result.message) || t('login_failed', '登录失败'))
+    }
+  } catch (err) {
+    ElMessage.error(String(err))
+  } finally {
+    smsLoading.value = false
+  }
+}
+
+// 扫码被隐藏后（平台/尺寸判定异步就绪），停在扫码页时切到手机号登录并停掉轮询
+watch(showQR, (visible) => {
+  if (visible) return
+  stopPolling()
+  if (activeTab.value === 'qr') {
+    activeTab.value = 'sms'
+  }
+})
+
 onMounted(() => {
-  loadQR()
+  // 扫码不可用时不必发二维码请求，省掉一次网络与后续轮询
+  if (showQR.value) {
+    loadQR()
+  } else if (activeTab.value === 'qr') {
+    activeTab.value = 'sms'
+  }
 })
 
 onBeforeUnmount(() => {
   stopPolling()
+  clearInterval(countdownTimer)
 })
 </script>
 
@@ -165,14 +294,14 @@ onBeforeUnmount(() => {
       </div>
 
       <el-tabs v-model="activeTab" stretch class="login-tabs">
-        <!-- 记住登录（两个登录方式共用） -->
+        <!-- 记住登录（三种登录方式共用） -->
         <div class="remember-row">
           <el-checkbox v-model="rememberLogin">
             {{ t('remember_login', '记住登录') }}
           </el-checkbox>
         </div>
-        <!-- 扫码登录（默认） -->
-        <el-tab-pane :label="t('tab_qr_login', '扫码登录')" name="qr">
+        <!-- 扫码登录（手机端隐藏：需另一台设备配合，详见 showQR 说明） -->
+        <el-tab-pane v-if="showQR" :label="t('tab_qr_login', '扫码登录')" name="qr">
           <div class="pane">
             <div class="qr-panel">
               <!-- 二维码区域 -->
@@ -219,6 +348,69 @@ onBeforeUnmount(() => {
           </div>
         </el-tab-pane>
 
+        <!-- 手机号登录 -->
+        <el-tab-pane :label="t('tab_sms_login', '手机号登录')" name="sms">
+          <div class="pane">
+            <el-form class="sms-form" label-position="top" @submit.prevent="handleSMSLogin">
+              <el-form-item :label="t('label_phone', '手机号')">
+                <el-input
+                  v-model="smsForm.phone"
+                  type="tel"
+                  inputmode="numeric"
+                  maxlength="11"
+                  :placeholder="t('placeholder_phone', '请输入手机号')"
+                  clearable
+                />
+              </el-form-item>
+              <el-form-item :label="t('label_sms_code', '短信验证码')">
+                <div class="code-row">
+                  <el-input
+                    v-model="smsForm.code"
+                    inputmode="numeric"
+                    maxlength="6"
+                    :placeholder="t('placeholder_sms_code', '请输入 6 位验证码')"
+                    clearable
+                  />
+                  <el-button
+                    class="code-btn"
+                    :disabled="smsCountdown > 0"
+                    :loading="smsSending"
+                    @click="handleSendSMS"
+                  >
+                    {{ smsCountdown > 0 ? smsCountdown + 's' : t('btn_send_sms', '获取验证码') }}
+                  </el-button>
+                </div>
+              </el-form-item>
+              <!-- 图形验证码：仅在百度风控要求时出现 -->
+              <el-form-item v-if="vcode.need" :label="t('label_img_code', '图片验证码')">
+                <div class="code-row">
+                  <el-input
+                    v-model="vcode.input"
+                    :placeholder="t('placeholder_img_code', '请输入图片验证码')"
+                    clearable
+                  />
+                  <img
+                    v-if="vcode.image"
+                    :src="vcode.image"
+                    class="vcode-img"
+                    :alt="t('label_img_code', '图片验证码')"
+                    @click="handleSendSMS"
+                  />
+                </div>
+              </el-form-item>
+              <el-button
+                type="primary"
+                class="login-btn"
+                :loading="smsLoading"
+                @click="handleSMSLogin"
+              >
+                {{ t('btn_login', '登 录') }}
+              </el-button>
+              <p class="cookie-tip">{{ t('sms_tip', '验证码将发送至该手机号') }}</p>
+            </el-form>
+          </div>
+        </el-tab-pane>
+
         <!-- Cookie 登录 -->
         <el-tab-pane :label="t('tab_cookie_login', 'Cookie 登录')" name="cookie">
           <div class="pane">
@@ -260,7 +452,7 @@ onBeforeUnmount(() => {
         <el-result
           icon="success"
           :title="t('login_success', '登录成功')"
-          :sub-title="loginResult.username ? (t('welcome', '欢迎回来') + ', ' + loginResult.username) : t('cookie_logged_in', '已通过 Cookie 登录')"
+          :sub-title="loginResult.username ? (t('welcome', '欢迎回来') + ', ' + loginResult.username) : t('logged_in', '已登录')"
         />
       </div>
     </el-card>
@@ -310,8 +502,10 @@ onBeforeUnmount(() => {
   padding: 4px 0 0;
 }
 
+/* 统一各 tab 的最小高度，切换时不引起卡片尺寸变化。
+   手机号登录命中风控时会多出「图片验证码」一行，用 min-height 允许临时撑高而不是被裁掉 */
 .pane {
-  height: 300px;
+  min-height: 300px;
   display: flex;
   flex-direction: column;
   justify-content: flex-start;
@@ -385,8 +579,39 @@ onBeforeUnmount(() => {
   100% { opacity: 1; }
 }
 
-.cookie-form {
+.cookie-form,
+.sms-form {
   padding: 8px 8px 0;
+}
+
+/* 输入框与附属控件（获取验证码按钮 / 图形验证码图片）同排 */
+.code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.code-row .el-input {
+  flex: 1;
+  /* 不加会在长占位文案下把按钮挤出容器 */
+  min-width: 0;
+}
+
+.code-btn {
+  flex: none;
+  width: 116px;
+}
+
+.vcode-img {
+  flex: none;
+  width: 92px;
+  height: 32px;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .login-btn {

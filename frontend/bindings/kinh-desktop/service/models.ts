@@ -157,6 +157,39 @@ export interface BaiduQuotaInfo {
     "message"?: string;
 }
 
+/**
+ * BaiduSMSCodeResult 发送短信验证码的结果
+ */
+export interface BaiduSMSCodeResult {
+    "success": boolean;
+    "message": string;
+
+    /**
+     * 短信验证码位数，默认 6
+     */
+    "code_length": number;
+
+    /**
+     * 需要先填写图形验证码
+     */
+    "need_vcode": boolean;
+
+    /**
+     * 图形验证码图片（Data URL）
+     */
+    "vcode_image": string;
+
+    /**
+     * 图形验证码会话串，重发时原样回传
+     */
+    "vcode_str": string;
+
+    /**
+     * 图形验证码签名，重发时原样回传
+     */
+    "vcode_sign": string;
+}
+
 export interface DownloadSubmitResult {
     "success": boolean;
     "task_id": string;

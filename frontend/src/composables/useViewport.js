@@ -12,8 +12,17 @@ import { ref } from 'vue'
 // 应用级单例，监听常驻（窗口尺寸变化、屏幕旋转都要跟随）。
 export const isPortrait = ref(false)
 
+// 小屏判定：视口短边 < 600px。
+//
+// 用短边而非宽度：手机横屏时宽度会到 800+，按宽度判会把横屏手机误当成平板。
+// 手机短边普遍在 360~430，平板的短边通常在 600 以上，600 这条线能把两者分开。
+// 用途见 LoginView：移动端小屏隐藏扫码登录（扫码需要另一台设备配合，在手机上没意义）。
+export const isSmallScreen = ref(false)
+
 function syncViewport() {
-  isPortrait.value = window.innerHeight > window.innerWidth
+  const { innerWidth, innerHeight } = window
+  isPortrait.value = innerHeight > innerWidth
+  isSmallScreen.value = Math.min(innerWidth, innerHeight) < 600
 }
 
 let bound = false
@@ -29,5 +38,5 @@ export function initViewport() {
 }
 
 export function useViewport() {
-  return { isPortrait }
+  return { isPortrait, isSmallScreen }
 }

@@ -128,6 +128,14 @@ export function GetSettings(): $CancellablePromise<$models.AppSettings> {
 }
 
 /**
+ * LoginWithBaiduSMS 使用手机号 + 短信验证码登录。
+ * rememberLogin 为 true 时登录成功后保存登录信息到本地。
+ */
+export function LoginWithBaiduSMS(phone: string, smsCode: string, rememberLogin: boolean): $CancellablePromise<$models.BaiduLoginResult | null> {
+    return $Call.ByID(1873538860, phone, smsCode, rememberLogin);
+}
+
+/**
  * LoginWithCookie 使用用户手动填写的 Cookie 登录（仅需 BDUSS 与 PTOKEN，STOKEN 由 PTOKEN 换取）
  * rememberLogin 为 true 时登录成功后保存登录信息到本地
  */
@@ -195,6 +203,15 @@ export function ResumeDownloadTask(taskID: string): $CancellablePromise<boolean>
  */
 export function SaveSettings(settings: $models.AppSettings): $CancellablePromise<string> {
     return $Call.ByID(2689818911, settings);
+}
+
+/**
+ * SendBaiduSMSCode 向指定手机号发送登录短信验证码。
+ * verifyCode / vcodeStr / vcodeSign 仅在上一轮返回 need_vcode 时填写：
+ * vcodeStr、vcodeSign 原样回传上一轮的值，verifyCode 是用户看图填的字符。
+ */
+export function SendBaiduSMSCode(phone: string, verifyCode: string, vcodeStr: string, vcodeSign: string): $CancellablePromise<$models.BaiduSMSCodeResult | null> {
+    return $Call.ByID(3016266500, phone, verifyCode, vcodeStr, vcodeSign);
 }
 
 /**

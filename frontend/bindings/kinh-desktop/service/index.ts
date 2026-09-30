@@ -15,6 +15,7 @@ export type {
     BaiduPollResult,
     BaiduQRCode,
     BaiduQuotaInfo,
+    BaiduSMSCodeResult,
     DownloadSubmitResult,
     DownloadTaskOptions,
     OShinDInfo,
