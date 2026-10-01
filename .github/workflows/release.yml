@@ -25,9 +25,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # 必须与 go.mod 里 github.com/wailsapp/wails/v3 的版本保持一致，
-  # 否则 CLI 生成的 bindings 与编译期使用的库版本不一致
-  WAILS3_VERSION: v3.0.0-beta.23
+  # 与 go.mod 里 github.com/wailsapp/wails/v3 的版本保持同步（跟随最新的 beta）
+  WAILS3_VERSION: v3.0.0-beta.27
   NODE_VERSION: '22'
   # 主代理偶发 HTTP/2 stream error（表现为 "INTERNAL_ERROR; received from peer"），
   # 挂镜像作为回退；正常情况不会走到第二个

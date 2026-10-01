@@ -4,7 +4,7 @@ go 1.25.6
 
 require (
 	github.com/sirupsen/logrus v1.9.3
-	github.com/wailsapp/wails/v3 v3.0.0-beta.23
+	github.com/wailsapp/wails/v3 v3.0.0-beta.27
 )
 
 require (

@@ -54,8 +54,19 @@ dev_mode:
   executes:
     - cmd: wails3 build DEV=true
       type: blocking
+    # ⚠️ 必须显式声明 readiness，覆盖 wails beta.26+ 自动注入的 HTTP 探测。
+    # 自动注入那个用裸 http.Client（不带 Accept 头）去 GET FRONTEND_DEVSERVER_URL，
+    # 而 Vite 对「没有 Accept 头的 GET /」直接返回 404，探测永远等不到 200，
+    # 60s 后判定前端未就绪并中止整个 runCycle —— 表现为「只起了前端，app 进程不启动」。
+    # 这里改用 TCP：只判断端口是否在监听，不涉及 HTTP 语义。
+    # 地址写 127.0.0.1 是为了与 frontend/vite.config.js 的 server.host 一致
+    # （本机 ::1 被黑洞，用 localhost 有走 IPv6 超时的风险）。
+    # 端口需与 Taskfile.yml 的 VITE_PORT 默认值（9245）保持一致。
     - cmd: wails3 task common:dev:frontend
       type: background
+      readiness:
+        tcp: "127.0.0.1:9245"
+        timeout: "60s"
     - cmd: wails3 task run
       type: primary
 
