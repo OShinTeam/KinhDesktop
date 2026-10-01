@@ -590,7 +590,8 @@ onUnmounted(stopPolling)
 
 .remove-question {
   margin: 0 0 12px;
-  font-size: 13px;
+  /* em 而非 px：跟随弹窗随视口缩放后的基准字号（见 style.css 弹窗自适应一节） */
+  font-size: 0.93em;
   line-height: 1.6;
   color: #606266;
 }

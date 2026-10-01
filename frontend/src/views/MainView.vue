@@ -23,7 +23,13 @@ const {
 
 // 竖屏（高 > 宽）：导航条移到窗口底部、内容区在上，避免侧栏挤占横向空间；
 // 横屏与桌面端保持左侧栏布局（详见 useViewport）
-const { isPortrait } = useViewport()
+const { isPortrait, isSmallScreen } = useViewport()
+
+// 手机竖屏的底部导航只留图标（无文字）：
+// 导航条本身只有 56px 高，图标 + 文字并排会挤在一起，可读性反而更差。
+// 判据用 isSmallScreen（视口短边 < 600px）而不是单纯 isPortrait ——
+// 桌面 / 平板窗口被拉成竖屏时短边依然够大，保持「图标 + 文字」原样，不受影响。
+const compactNav = computed(() => isPortrait.value && isSmallScreen.value)
 
 // v2 的 ClipboardSetText 返回布尔，v3 的 Clipboard.SetText 失败时抛错，这里还原成原来的语义
 async function ClipboardSetText(text) {
@@ -391,7 +397,7 @@ function vipInfo(vipType) {
 </script>
 
 <template>
-  <div class="main-layout" :class="{ 'is-portrait': isPortrait }">
+  <div class="main-layout" :class="{ 'is-portrait': isPortrait, 'is-compact-nav': compactNav }">
     <!-- 左侧边栏：竖屏时由 CSS 转成底部导航条 -->
     <aside class="sidebar">
       <!-- 顶部：网盘容量卡片（竖屏的底部导航里放不下，交由 CSS 隐藏） -->
@@ -420,7 +426,10 @@ function vipInfo(vipType) {
       >
         <el-menu-item v-for="item in menuItems" :key="item.key" :index="item.key">
           <el-icon><component :is="item.icon" /></el-icon>
-          <template #title>{{ t('page_' + item.key, item.key) }}</template>
+          <!-- 手机竖屏（compactNav）不渲染文字，导航条只留图标 -->
+          <template #title>
+            <span v-if="!compactNav">{{ t('page_' + item.key, item.key) }}</span>
+          </template>
         </el-menu-item>
       </el-menu>
 
@@ -623,6 +632,18 @@ function vipInfo(vipType) {
   border-top: none;
 }
 
+/* 手机竖屏：底部导航只留图标 —— 去掉为文字预留的左右内边距，图标居中并适当放大。
+   el-menu-item 与图标都是 Element Plus 渲染的内部节点，需用 :deep() 才能命中 */
+.main-layout.is-compact-nav .sidebar-menu :deep(.el-menu-item) {
+  padding: 0 12px;
+}
+
+.main-layout.is-compact-nav .sidebar-menu :deep(.el-menu-item [class^="el-icon"]) {
+  font-size: 22px;
+  margin-right: 0;
+  width: auto;
+}
+
 /* 顶部网盘容量卡片 */
 .quota-card {
   padding: 16px;
@@ -750,7 +771,8 @@ function vipInfo(vipType) {
 }
 
 .dl-link-name {
-  font-size: 14px;
+  /* em 而非 px：跟随弹窗随视口缩放后的基准字号（见 style.css 弹窗自适应一节） */
+  font-size: 1em;
   color: #303133;
   overflow: hidden;
   white-space: nowrap;
@@ -761,7 +783,7 @@ function vipInfo(vipType) {
   padding: 8px 10px;
   background: #f5f7fa;
   border-radius: 4px;
-  font-size: 12px;
+  font-size: 0.86em;
   line-height: 1.5;
   color: #606266;
   word-break: break-all;
@@ -774,7 +796,7 @@ function vipInfo(vipType) {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  font-size: 12px;
+  font-size: 0.86em;
   color: #909399;
 }
 
@@ -791,7 +813,7 @@ function vipInfo(vipType) {
 
 .multi-progress-text {
   margin-top: 10px;
-  font-size: 13px;
+  font-size: 0.93em;
   color: var(--el-text-color-secondary);
   text-align: center;
 }

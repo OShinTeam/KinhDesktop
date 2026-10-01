@@ -102,3 +102,44 @@ html {
     --el-checkbox-input-border-color-hover: var(--el-checkbox-input-border-color);
   }
 }
+
+/* ==================== 弹窗文字随可视宽度自适应 ====================
+   弹窗（ElDialog / ElMessageBox / ElMessage）在手机窄屏上排版容易过挤：
+   宽度被压到屏幕内之后，原来的字号相对可视区域偏大、标签与按钮换行。
+   这里让弹窗内的文字随视口宽度等比缩小。
+
+   关键：clamp() 的上限就是「原始字号」，而 vw 在约 432px 视口处刚好达到上限 ——
+   所以视口 >= 432px（电脑、平板、横屏手机）取到的仍是原字号，完全不受影响；
+   只有更窄的手机屏才会按比例缩小。
+
+   实现方式：把 Element Plus 的字号变量在弹窗作用域内重定向。
+   EP 内部绝大多数文本都引用 --el-font-size-*，改这几个变量即可整体跟随；
+   变量定义在弹窗自身元素上，随 DOM 继承给内部节点，不会外泄到页面其它区域。
+   双类名（.el-dialog.el-dialog）是为了压过 EP 自身同名规则的特异性。 */
+.el-dialog.el-dialog,
+.el-message-box.el-message-box {
+  --el-font-size-extra-large: clamp(16px, 4.63vw, 20px);
+  --el-font-size-large: clamp(15px, 4.17vw, 18px);
+  --el-font-size-medium: clamp(13px, 3.7vw, 16px);
+  --el-font-size-base: clamp(11.5px, 3.24vw, 14px);
+  --el-font-size-small: clamp(10.5px, 3.01vw, 13px);
+  --el-font-size-extra-small: clamp(10px, 2.78vw, 12px);
+
+  /* 弹窗正文的字号被 EP 写死成 14px，改为跟随上面缩放后的基准字号 */
+  --el-dialog-content-font-size: var(--el-font-size-base);
+}
+
+/* ElMessage 轻提示的正文字号同样被写死（在 .el-message__content 上），单独覆盖。
+   注意选择器要写到 __content：字号不在 .el-message 根节点上，改根节点没用 */
+.el-message .el-message__content {
+  font-size: clamp(11.5px, 3.24vw, 14px);
+}
+
+/* ==================== 弹窗宽度窄屏自适应 ====================
+   桌面端弹窗宽度写死 560px（MainView / DownloadsView 的 width 属性），
+   在 400px 上下宽的手机屏上会溢出可视区域。
+   max-width 在这里是安全网：视口 >= 584px 时 calc() 结果大于原宽度，规则不生效，
+   电脑与平板的外观保持不变。 */
+.el-dialog.el-dialog {
+  max-width: calc(100vw - 24px);
+}
