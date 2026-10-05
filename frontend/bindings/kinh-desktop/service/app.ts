@@ -137,7 +137,14 @@ export function LoginWithCookie(bduss: string, ptoken: string, rememberLogin: bo
     return $Call.ByID(1310908458, bduss, ptoken, rememberLogin);
 }
 
-export function OpenFolderSelect(): $CancellablePromise<string> {
+/**
+ * OpenFolderSelect 打开目录选择对话框。
+ * 
+ * 返回值是 map 而非 string，这样前端能区分「用户取消」与「平台不支持」——
+ * v3 没有独立的目录选择对话框，这里用文件对话框并把可选目标切到目录；
+ * CanChooseFiles 显式置 false 是声明意图：v3 在两者都为 false 时会兜底成选文件。
+ */
+export function OpenFolderSelect(): $CancellablePromise<{ [_ in string]?: any } | null> {
     return $Call.ByID(1985253079);
 }
 

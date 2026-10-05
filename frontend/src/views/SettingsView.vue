@@ -196,8 +196,20 @@ async function handleSave() {
 }
 
 function handleChooseDir() {
-  OpenFolderSelect().then(dir => {
-    if (dir) form.download_dir = dir
+  OpenFolderSelect().then(res => {
+    if (!res) return
+    if (res.unsupported) {
+      ElMessage.warning(t('settings_dir_unsupported', '当前平台不支持选择下载目录'))
+      return
+    }
+    if (res.error) {
+      ElMessage.error(t('settings_dir_failed', '打开目录选择失败') + ': ' + res.error)
+      return
+    }
+    if (res.cancelled) return
+    if (res.path) form.download_dir = res.path
+  }).catch(err => {
+    ElMessage.error(t('settings_dir_failed', '打开目录选择失败') + ': ' + String(err))
   })
 }
 

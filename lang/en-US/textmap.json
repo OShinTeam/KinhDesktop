@@ -77,6 +77,8 @@
   "settings_dir": "Download Directory",
   "settings_dir_desc": "Default location for saved files.",
   "settings_dir_choose": "Browse",
+  "settings_dir_unsupported": "Directory selection is not supported on this platform",
+  "settings_dir_failed": "Failed to open directory picker",
   "settings_log_level": "Log Level",
   "settings_log_level_desc": "Verbosity of log records.",
   "settings_save": "Save Settings",

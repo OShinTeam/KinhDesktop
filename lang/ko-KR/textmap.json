@@ -37,6 +37,8 @@
   "settings_dir": "다운로드 폴더",
   "settings_dir_desc": "파일 기본 저장 위치.",
   "settings_dir_choose": "찾아보기",
+  "settings_dir_unsupported": "이 플랫폼에서는 다운로드 폴더 선택을 지원하지 않습니다",
+  "settings_dir_failed": "폴더 선택 창을 열 수 없습니다",
   "settings_log_level": "로그 레벨",
   "settings_log_level_desc": "로그 기록의 상세 정도.",
   "settings_save": "설정 저장",

@@ -1,6 +1,9 @@
 package service
 
 import (
+	"runtime"
+	"strings"
+
 	"kinh-desktop/global"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -53,17 +56,46 @@ func (a *App) WindowClose() {
 // ==================== 原生对话框 ====================
 // v3 的对话框改为链式 Builder：配置后 PromptForSingleSelection() 弹出并返回选中路径
 
-func (a *App) OpenFolderSelect() string {
-	// v3 没有独立的目录选择对话框；用文件对话框并把可选目标切到目录。
-	// CanChooseFiles 显式置 false 是声明意图：v3 在两者都为 false 时会兜底成选文件
+// OpenFolderSelect 打开目录选择对话框。
+//
+// 返回值是 map 而非 string，这样前端能区分「用户取消」与「平台不支持」——
+// v3 没有独立的目录选择对话框，这里用文件对话框并把可选目标切到目录；
+// CanChooseFiles 显式置 false 是声明意图：v3 在两者都为 false 时会兜底成选文件。
+func (a *App) OpenFolderSelect() map[string]interface{} {
+	result := map[string]interface{}{
+		"path":        "",
+		"cancelled":   false,
+		"unsupported": false,
+	}
+
+	// Android 上 wails 直接拒绝目录选择（SAF 返回 document-tree URI 而非文件路径），
+	// 见 pkg/application/dialogs_android.go。这里提前返回，省掉一次无用的 IPC。
+	if runtime.GOOS == "android" {
+		result["unsupported"] = true
+		return result
+	}
+
 	folder, err := a.app.Dialog.OpenFileWithOptions(&application.OpenFileDialogOptions{
 		Title:                "选择目录",
 		CanChooseDirectories: true,
 		CanChooseFiles:       false,
 	}).PromptForSingleSelection()
 	if err != nil {
+		// "cancelled by user" 来自 wails 内部的 go-common-file-dialog 包（internal/，
+		// 项目侧无法 import），只能按文本识别
+		if strings.Contains(err.Error(), "cancelled by user") {
+			result["cancelled"] = true
+			return result
+		}
 		global.Log.Warnf("打开目录对话框失败: %v", err)
-		return ""
+		result["error"] = err.Error()
+		return result
 	}
-	return folder
+	if folder == "" {
+		result["cancelled"] = true
+		return result
+	}
+
+	result["path"] = folder
+	return result
 }

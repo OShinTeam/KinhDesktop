@@ -37,6 +37,8 @@
   "settings_dir": "ダウンロードフォルダ",
   "settings_dir_desc": "ファイルの既定の保存先。",
   "settings_dir_choose": "参照",
+  "settings_dir_unsupported": "このプラットフォームではダウンロード先の選択に対応していません",
+  "settings_dir_failed": "フォルダ選択を開けませんでした",
   "settings_log_level": "ログレベル",
   "settings_log_level_desc": "ログの記録の詳細度。",
   "settings_save": "設定を保存",
