@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Clipboard, Events } from '@wailsio/runtime'
 import { useViewport } from '../composables/useViewport'
@@ -41,7 +41,7 @@ async function ClipboardSetText(text) {
   }
 }
 
-const props = defineProps({
+defineProps({
   credential: { type: Object, required: true }
 })
 
@@ -152,7 +152,10 @@ async function loadFiles(dir = '/') {
     currentDir.value = result.dir || dir
   } catch (error) {
     files.value = []
-    ElMessage.error(error?.message || String(error) || t('file_list_load_failed', '读取文件列表失败'))
+    // 不用 String(error) 兜底：它对任何值都返回非空字符串（最差是 "undefined"），
+    // 会把末尾的 i18n 兜底彻底短路，错误信息显示成字面量 "undefined"
+    const detail = error?.message || (typeof error === 'string' ? error : '')
+    ElMessage.error(detail || t('file_list_load_failed', '读取文件列表失败'))
   } finally {
     loading.value = false
   }
@@ -287,11 +290,17 @@ async function pushMultiLinkToDownload() {
   }
 }
 
-// 解析进度事件：后端每次解析请求完成时推送一次
-Events.On('experimental-link-progress', (ev) => {
+// 解析进度事件：后端每次解析请求完成时推送一次。
+// Events.On 返回取消函数，必须在卸载时注销 —— MainView 会因登录/退出反复挂载，
+// 否则监听器会持续累积，旧实例的回调仍会执行
+const offLinkProgress = Events.On('experimental-link-progress', (ev) => {
   const p = ev?.data
   if (!p || !multiLink.value || multiLink.value.phase !== 'fetching') return
   multiLinkProgress.value = { done: p.done, total: p.total, links: p.links }
+})
+
+onUnmounted(() => {
+  offLinkProgress()
 })
 
 function closeMultiLink() {
@@ -754,13 +763,6 @@ function vipInfo(vipType) {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-}
-
-.page-placeholder {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: center;
 }
 
 /* 下载直链弹窗内容 */

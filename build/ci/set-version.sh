@@ -72,13 +72,13 @@ subst "$root/build/windows/nsis/project.nsi" \
 # 4) 前端包版本（仅为保持一致，构建产物不依赖它）
 subst "$root/frontend/package.json" "s/^  \"version\": \"[^\"]*\",/  \"version\": \"$version\",/"
 
-# 2) Windows 可执行文件的文件属性（资源管理器「属性 → 详细信息」里看到的版本）
+# 5) Windows 可执行文件的文件属性（资源管理器「属性 → 详细信息」里看到的版本）
 subst "$root/build/windows/info.json" \
   "s/(\"file_version\": *)\"[^\"]*\"/\\1\"$version\"/"
 subst "$root/build/windows/info.json" \
   "s/(\"ProductVersion\": *)\"[^\"]*\"/\\1\"$version\"/"
 
-# 3) macOS .app 的版本（Finder 显示、以及系统更新判断依据）
+# 6) macOS .app 的版本（Finder 显示、以及系统更新判断依据）
 #    plist 里是 key 一行、string 一行的结构，用 n 跳到下一行再替换
 plist="$root/build/darwin/Info.plist"
 if [ -f "$plist" ]; then

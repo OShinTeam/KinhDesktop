@@ -38,6 +38,23 @@ tasks:
   dev:
     summary: Runs the application in development mode
     cmds:
+      # ⚠️ build/config.yml 的 dev_mode 里，前端步骤的 readiness 探测端口是
+      # **硬编码字面量 9245**（该文件只做 yaml.Unmarshal，不做环境变量展开，
+      # 无法引用这里的 VITE_PORT）。所以改端口必须三处同步：
+      #   1) 本文件 VITE_PORT 的默认值
+      #   2) build/config.yml 的 readiness.tcp
+      #   3) frontend/vite.config.js 的 server.port 兜底值
+      # 漏改的后果不是报错，而是 readiness 一直等不到 → 60s 后才失败，
+      # 表现为「只起了前端、app 进程不启动」，很难联想到是端口不一致。
+      # 这里提前拦下并给出可执行的提示。
+      - |
+        [ "{{.VITE_PORT}}" = "9245" ] || {
+          echo "❌ WAILS_VITE_PORT={{.VITE_PORT}} 与 build/config.yml 的 readiness 探测端口 9245 不一致。" >&2
+          echo "   config.yml 不支持变量替换，无法自动同步，请手动把下面两处也改成 {{.VITE_PORT}}：" >&2
+          echo "     - build/config.yml  → dev_mode 的 readiness.tcp" >&2
+          echo "     - frontend/vite.config.js → server.port 兜底值" >&2
+          exit 1
+        }
       - wails3 dev -config ./build/config.yml -port {{.VITE_PORT}}
 
   install:msix:tools:

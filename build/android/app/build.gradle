@@ -26,10 +26,7 @@ android {
 
         // Configure supported ABIs
         //
-        // 只保留 arm64-v8a。
-        // 原因：OShinD 组件的 x86_64 版本在实际运行中不稳定 —— 表现为主界面
-        // 登录成功后加载组件（dlopen + 首次 FFI 调用）时崩溃；OShinD 目前
-        // 只有 arm64 产物是可靠的。
+        // 只保留 arm64-v8a：目前仅 arm64 产物经过真机验证。
         // 模拟器请开启「ARM 兼容模式」运行，不要依赖 x86_64 构建。
         ndk {
             abiFilters 'arm64-v8a'
@@ -83,15 +80,15 @@ android {
     packagingOptions {
         // Don't strip Go symbols in debug builds
         doNotStrip '*/arm64-v8a/libwails.so'
-        doNotStrip '*/x86_64/libwails.so'
-        // OShinD 组件同样是 c-shared 产物，strip 会破坏其导出符号
-        doNotStrip '*/arm64-v8a/liboshind.so'
-        doNotStrip '*/x86_64/liboshind.so'
     }
 
-    // AGP 8.7.3 的 lint 在 JDK 25 下会崩溃（官方支持到 JDK 17/21），
-    // 而 release 构建默认执行 lintVital 检查，其崩溃会中断整个打包流程。
-    // 这里关闭 release 构建的 lint；需要静态检查时请用 JDK 17/21 单独执行 ./gradlew lint
+    // 关闭 release 构建内置的 lintVital 检查 —— 它在本机 JDK 25 下会崩溃
+    // （AGP 8.7.3 官方支持到 JDK 17/21），而崩溃会中断整个打包流程。
+    //
+    // ⚠️ 这是为迁就**本机** JDK 25，不是为了绕过检查：
+    // release.yml 的 android job 固定用 JDK 21，并在打包后显式跑
+    // `sh ./gradlew lintRelease` 补上静态检查，manifest 权限等问题仍会被拦下。
+    // 若将来本机也切到 JDK 17/21，可以把这里删掉。
     lint {
         checkReleaseBuilds false
     }

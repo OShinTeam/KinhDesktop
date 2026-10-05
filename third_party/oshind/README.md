@@ -23,7 +23,7 @@ tag 解析子目录 module，因此它既不能被 `go get` 直接拉取，也�
 | 仓库 | https://github.com/OshinTeam/OShinD |
 | module | `github.com/mogumc/oshind`（与仓库名不一致，属上游既有情况） |
 | 分支 | `dev` |
-| 提交 | `b646d74` — fix(downloader): 加强分片响应校验与完整性检查（2026-09-06） |
+| 提交 | `650bda9` — fix(downloader): 取消任务应置 CANCELLED 而非落入 FAILED（2026-10-05） |
 | 取用范围 | `src/go.mod`、`src/go.sum`、`src/pkg/`、`src/types/` |
 
 `src/cmd/`（CLI 与 FFI 入口）**未取用**：KinhDesktop 直接调用引擎包，
@@ -46,5 +46,11 @@ tag 解析子目录 module，因此它既不能被 `go get` 直接拉取，也�
   需要适配请写在 `service/oshind.go` 这层。
 - 本目录是**独立 Go module**（自带 go.mod），因此 `go vet ./...`
   不会扫描它，项目根的 tidy 也只会按需拉取真正用到的依赖。
+- **任务状态语义（2026-10-05 起）**：引擎有 9 个状态，其中两个「用户主动中断」态
+  不可恢复，务必区分，否则会出现「取消后被自动重试复活」：
+  - `PAUSED` — 暂停，保留 `.oshin` 断点，可 `ResumeTask`
+  - `CANCELLED` — 取消，保留 `.oshin` 断点，但 `ResumeTask` 会拒绝
+  - 两者调用 `types.DownloadTask.Fail()` 时都是 no-op（不被记成 FAILED）
+  - 前端轮询只在 `status == "FAILED"` 时触发自动重试，故 `CANCELLED` 天然免疫
 - 许可证：AGPL-3.0（见同目录 `LICENSE`），版权归 OshinTeam。
   本项目为 GPL-2.0，两者的兼容性需由项目负责人确认。

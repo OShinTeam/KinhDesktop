@@ -59,25 +59,29 @@ let baseline = ''
 // 是否有未保存的修改（供父组件切换页面前查询）
 const isDirty = ref(false)
 
-// 将表单转为可比对字符串（键序固定，避免对象键序差异误判）
+// 将表单转为可比对字符串。
+// 用对象字面量而非数组：数组形式下 JSON.parse 得到的是 Array，
+// Object.assign(form, array) 会把下标 "0".."14" 赋给 form 而非真实字段名，
+// 导致 discardChanges 恢复失败、checkDirty 永远为 true。
+// 键序由字面量书写顺序固定，JSON.stringify 保证输出稳定。
 function serializeForm() {
-  return JSON.stringify([
-    form.language,
-    form.close_action,
-    form.download_proxy,
-    form.download_user_agent,
-    form.download_threads,
-    form.download_chunk_kb,
-    form.download_dir,
-    form.download_acc_link,
-    form.download_force_tls,
-    form.download_max_retries,
-    form.download_max_active,
-    form.experimental_multi_link,
-    form.experimental_channel,
-    form.experimental_count,
-    form.log_level,
-  ])
+  return JSON.stringify({
+    language: form.language,
+    close_action: form.close_action,
+    download_proxy: form.download_proxy,
+    download_user_agent: form.download_user_agent,
+    download_threads: form.download_threads,
+    download_chunk_kb: form.download_chunk_kb,
+    download_dir: form.download_dir,
+    download_acc_link: form.download_acc_link,
+    download_force_tls: form.download_force_tls,
+    download_max_retries: form.download_max_retries,
+    download_max_active: form.download_max_active,
+    experimental_multi_link: form.experimental_multi_link,
+    experimental_channel: form.experimental_channel,
+    experimental_count: form.experimental_count,
+    log_level: form.log_level,
+  })
 }
 
 // 表单与基线比对，刷新脏标记
@@ -162,7 +166,7 @@ async function loadSettings() {
     baseline = serializeForm()
     refreshDirty()
   } catch (err) {
-    ElMessage.error(t('settings_save_failed', '设置保存失败') + ': ' + String(err))
+    ElMessage.error(t('settings_load_failed', '读取设置失败') + ': ' + String(err))
   } finally {
     loading.value = false
   }
@@ -177,7 +181,7 @@ async function handleSave() {
     } else {
       // 语言变化时重载语言包，全页面文案热切换（无需重启）
       const oldBaseline = baseline ? JSON.parse(baseline) : null
-      if (oldBaseline && oldBaseline[0] !== form.language) {
+      if (oldBaseline && oldBaseline.language !== form.language) {
         await loadTextMap()
       }
       baseline = serializeForm()

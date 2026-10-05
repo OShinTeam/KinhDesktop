@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -47,7 +48,17 @@ type downloadTaskEntry struct {
 	LastError string `json:"last_error,omitempty"`
 	// Sources 多源地址（实验性多地址下载）：排队任务递补时按原样重建引擎 config
 	Sources []string `json:"sources,omitempty"`
+	// RetryPending 上次恢复因并发已满被暂缓（本次未真正尝试）。
+	// 前端据此区分「稍后重试」与「恢复失败」，前者不消耗重试次数
+	RetryPending bool `json:"retry_pending,omitempty"`
 }
+
+// failedTaskIDPrefix 递补提交失败的任务在台账里的占位 ID 前缀。
+// 引擎侧不存在该任务，只能按 URL 重新提交，无法 ResumeTask
+const failedTaskIDPrefix = "failed-"
+
+// queuedTaskIDPrefix 并发已满而排队等待递补的任务占位 ID 前缀
+const queuedTaskIDPrefix = "queued-"
 
 var (
 	downloadMu    sync.Mutex
@@ -157,13 +168,47 @@ func slotOccupyingCount() int {
 	return n
 }
 
+// downloadDispatchInterval 排队调度器的检查间隔
+const downloadDispatchInterval = 2 * time.Second
+
+// StartDownloadScheduler 启动常驻排队调度器（进程级，仅需启动一次）。
+//
+// 此前递补只挂在 GetDownloadTasks（前端每秒轮询）上，而 DownloadsView 是
+// v-else-if 渲染的：用户切到文件页组件即卸载、轮询停止，剩余排队任务会永远
+// 停在「排队中」，设置里「有任务完成后自动开始下一个」在跨页面场景是假的。
+// 调度器是纯后台的，无排队任务时每次只做一次加锁遍历，开销可忽略。
+func StartDownloadScheduler() {
+	go func() {
+		ticker := time.NewTicker(downloadDispatchInterval)
+		defer ticker.Stop()
+		for range ticker.C {
+			// 台账为空时直接跳过，避免无谓的锁竞争与引擎查询
+			downloadMu.Lock()
+			hasQueued := false
+			for _, e := range downloadTasks {
+				if e.Queued {
+					hasQueued = true
+					break
+				}
+			}
+			downloadMu.Unlock()
+			if hasQueued {
+				DispatchQueuedDownloads()
+			}
+		}
+	}()
+}
+
 // enqueueDownload 把任务加入排队台账（须持有 downloadSubmitMu）
-func enqueueDownload(fileName, url string) *downloadTaskEntry {
+func enqueueDownload(fileName, url string) downloadTaskEntry {
 	return enqueueDownloadWithOptions(DownloadTaskOptions{URL: url, FileName: fileName})
 }
 
 // enqueueDownloadWithOptions 带完整选项入队（多源地址等需在递补时重建）
-func enqueueDownloadWithOptions(opts DownloadTaskOptions) *downloadTaskEntry {
+// 返回入队条目的快照拷贝而非切片元素指针：append 扩容会搬移底层数组、
+// RemoveDownloadTask 的 append(downloadTasks[:i], downloadTasks[i+1:]...)
+// 更是原地搬移元素，返回的指针在锁外读会串到相邻任务的字段。
+func enqueueDownloadWithOptions(opts DownloadTaskOptions) downloadTaskEntry {
 	downloadMu.Lock()
 	defer downloadMu.Unlock()
 	entry := downloadTaskEntry{
@@ -175,7 +220,7 @@ func enqueueDownloadWithOptions(opts DownloadTaskOptions) *downloadTaskEntry {
 		Sources:  opts.MultiSources,
 	}
 	downloadTasks = append(downloadTasks, entry)
-	return &downloadTasks[len(downloadTasks)-1]
+	return entry
 }
 
 // resolveUniqueDownloadName 提交前文件名去重（须持有 downloadSubmitMu）：
@@ -218,23 +263,22 @@ func DispatchQueuedDownloads() {
 			return
 		}
 
-		// 取最早入队的排队任务（快照 Seq 定位条目——切片可能在提交期间被增删，
-		// 绝不能跨锁复用切片下标）
+		// 取最早入队的排队任务。锁内直接拷出快照：切片可能在提交期间被增删，
+		// 既不能跨锁复用下标，也不能把 &downloadTasks[i] 带出锁外
+		// （后续 append 会搬移元素使该指针指向别的任务）
 		downloadMu.Lock()
-		var entry *downloadTaskEntry
+		var snap downloadTaskEntry
+		var hasQueued bool
 		for i := range downloadTasks {
 			if downloadTasks[i].Queued {
-				entry = &downloadTasks[i]
+				snap = downloadTasks[i]
+				hasQueued = true
 				break
 			}
 		}
-		var snap downloadTaskEntry
-		if entry != nil {
-			snap = *entry
-		}
 		downloadMu.Unlock()
 
-		if entry == nil {
+		if !hasQueued {
 			// 没有排队任务了
 			downloadSubmitMu.Unlock()
 			return
@@ -266,7 +310,7 @@ func DispatchQueuedDownloads() {
 			// （既非排队又无引擎状态，界面无从展示、无从操作）
 			if found >= 0 && downloadTasks[found].Queued {
 				downloadTasks[found].Queued = false
-				downloadTasks[found].TaskID = fmt.Sprintf("failed-%d", snap.Seq)
+				downloadTasks[found].TaskID = failedTaskIDPrefix + strconv.FormatInt(snap.Seq, 10)
 				downloadTasks[found].LastError = err.Error()
 			}
 			downloadMu.Unlock()
@@ -334,7 +378,7 @@ func (a *App) SubmitDownload(url, fileName string, fsID int64) *DownloadSubmitRe
 		downloadSubmitMu.Unlock()
 		result.Success = true
 		result.Queued = true
-		result.TaskID = fmt.Sprintf("queued-%d", entry.Seq)
+		result.TaskID = queuedTaskIDPrefix + strconv.FormatInt(entry.Seq, 10)
 		global.Log.Infof("并发已满(%d)，任务排队: %s (seq=%d)", maxActiveDownloads(), fileName, entry.Seq)
 		return result
 	}
@@ -372,26 +416,36 @@ func (a *App) SubmitDownload(url, fileName string, fsID int64) *DownloadSubmitRe
 func (a *App) GetDownloadTasks() []map[string]interface{} {
 	downloadMu.Lock()
 	tasks := append([]downloadTaskEntry(nil), downloadTasks...)
+	// 顺带记下「是否存在排队任务」，省掉函数末尾那次无锁遍历
+	hasQueued := false
+	for _, e := range downloadTasks {
+		if e.Queued {
+			hasQueued = true
+			break
+		}
+	}
+	firstList := !downloadListRequested
+	downloadListRequested = true
 	downloadMu.Unlock()
 
 	// 首次被请求时留一行日志：用于区分「前端没在轮询」与「轮询了但拿不到数据」，
 	// 之后静默以免每秒刷屏
-	if !downloadListRequested {
-		downloadListRequested = true
+	if firstList {
 		global.Log.Infof("下载列表首次被请求，当前台账 %d 条", len(tasks))
 	}
 
 	maxRetries := getSettings().DownloadMaxRetries
 	list := make([]map[string]interface{}, 0, len(tasks))
-	for idx, entry := range tasks {
+	for _, entry := range tasks {
 		item := map[string]interface{}{
-			"task_id":     entry.TaskID,
-			"seq":         entry.Seq,
-			"file_name":   entry.FileName,
-			"url":         entry.URL,
-			"created_at":  entry.Created.Format(time.RFC3339),
-			"max_retries": maxRetries,
-			"queued":      entry.Queued,
+			"task_id":       entry.TaskID,
+			"seq":           entry.Seq,
+			"file_name":     entry.FileName,
+			"url":           entry.URL,
+			"created_at":    entry.Created.Format(time.RFC3339),
+			"max_retries":   maxRetries,
+			"queued":        entry.Queued,
+			"retry_pending": entry.RetryPending,
 		}
 		if entry.Queued {
 			// 排队任务：无引擎状态，补一个固定状态字段供前端展示
@@ -418,11 +472,18 @@ func (a *App) GetDownloadTasks() []map[string]interface{} {
 					}
 				}
 				// probe 后组件返回真实文件名（含 Content-Disposition 名称），
-				// 台账为空时回填；用户显式指定的名称不覆盖
+				// 台账为空时回填；用户显式指定的名称不覆盖。
+				// 按 Seq 定位而非复用快照下标：快照取得后切片可能已被
+				// RemoveDownloadTask 的 append 搬移或被 submit 扩容，下标会错位。
 				if name, _ := status["file_name"].(string); name != "" {
 					downloadMu.Lock()
-					if downloadTasks[idx].TaskID == entry.TaskID && downloadTasks[idx].FileName == "" {
-						downloadTasks[idx].FileName = name
+					for i := range downloadTasks {
+						if downloadTasks[i].Seq == entry.Seq {
+							if downloadTasks[i].TaskID == entry.TaskID && downloadTasks[i].FileName == "" {
+								downloadTasks[i].FileName = name
+							}
+							break
+						}
 					}
 					downloadMu.Unlock()
 				}
@@ -432,21 +493,8 @@ func (a *App) GetDownloadTasks() []map[string]interface{} {
 	}
 
 	// 有任务离开活动态（完成/失败）且存在排队任务时，递补下一个。
-	// 放在列表读取路径上避免引入额外 goroutine/定时器；slotOccupyingCount 的
-	// 判断很轻（缓存台账 + 状态查引擎），空转开销可忽略
-	if len(downloadTasks) > 0 {
-		hasQueued := false
-		downloadMu.Lock()
-		for _, e := range downloadTasks {
-			if e.Queued {
-				hasQueued = true
-				break
-			}
-		}
-		downloadMu.Unlock()
-		if hasQueued {
-			go DispatchQueuedDownloads()
-		}
+	if hasQueued {
+		go DispatchQueuedDownloads()
 	}
 	return list
 }
@@ -471,15 +519,32 @@ func (a *App) PauseDownloadTask(taskID string) bool {
 	return true
 }
 
-// ResumeDownloadTask 恢复暂停/失败的任务
-// 组件侧移除旧任务并重新提交（自动检测 .oshin 断点状态），返回新任务 ID，
-// 台账条目需同步替换 ID，否则后续轮询查不到状态。
-// 并发已满时拒绝恢复（false）—— 前端自动重试会在下一轮轮询再试，防止击穿上限
+// ResumeDownloadTask 恢复暂停/失败的任务。
+// 引擎侧 ResumeTask 会移除旧任务并重新提交（自动检测 .oshin 断点），
+// 返回新任务 ID，台账条目需同步替换 ID，否则后续轮询查不到状态。
+//
+// 两类「返回 false」必须区分，否则前端会把「并发满、稍后再说」当成
+// 「恢复失败」并累加重试计数，几轮内就误报「重试耗尽，请手动处理」：
+//   - deferred：并发已满，本次未尝试恢复，不消耗重试次数
+//   - failed：真正恢复失败，消耗一次重试次数
+//
+// 通过台账条目的 retry_pending 标记把该信息带回给前端（bool 返回值是
+// 既有 bindings 契约，不能改签名）。
 func (a *App) ResumeDownloadTask(taskID string) bool {
+	// 递补提交失败的任务（failed-<seq> 占位）引擎侧根本不存在，
+	// 调 ResumeTask 必然 task not found —— 死局。按 URL 重新提交才能救回来。
+	if entry, ok := findEntryByTaskID(taskID); ok && strings.HasPrefix(entry.TaskID, failedTaskIDPrefix) {
+		return a.resubmitFailedEntry(entry)
+	}
+
 	if slotOccupyingCount() >= maxActiveDownloads() {
+		markRetryPending(taskID, true)
 		global.Log.Infof("并发已满(%d)，暂缓恢复任务: %s", maxActiveDownloads(), taskID)
 		return false
 	}
+
+	// 真正进入恢复流程：清掉暂缓标记，失败要计入重试次数
+	markRetryPending(taskID, false)
 
 	newID, err := downloadEngine().ResumeTask(taskID, nil)
 	if err != nil {
@@ -493,6 +558,7 @@ func (a *App) ResumeDownloadTask(taskID string) bool {
 		if downloadTasks[i].TaskID == taskID {
 			downloadTasks[i].TaskID = newID
 			downloadTasks[i].LastError = ""
+			downloadTasks[i].RetryPending = false
 			break
 		}
 	}
@@ -502,6 +568,69 @@ func (a *App) ResumeDownloadTask(taskID string) bool {
 	return true
 }
 
+// resubmitFailedEntry 重新提交一条递补失败的任务（台账有 URL 与多源地址，
+// 引擎侧无对应任务，只能整条重提）。多源地址原样带回，避免降级为单源。
+func (a *App) resubmitFailedEntry(entry downloadTaskEntry) bool {
+	if slotOccupyingCount() >= maxActiveDownloads() {
+		markRetryPending(entry.TaskID, true)
+		global.Log.Infof("并发已满(%d)，暂缓重提任务: %s", maxActiveDownloads(), entry.FileName)
+		return false
+	}
+	markRetryPending(entry.TaskID, false)
+
+	config := buildDownloadConfig(
+		getSettings().DownloadDir, effectiveDownloadUA(),
+		getSettings().DownloadThreads, getSettings().DownloadChunkKB)
+	if len(entry.Sources) > 0 {
+		config.MultiSources = entry.Sources
+	}
+
+	taskID, err := downloadEngine().SubmitDownload(entry.URL, config, nil)
+	if err != nil && taskID == "" {
+		global.Log.Errorf("重提递补失败任务出错: %s: %v", entry.FileName, err)
+		return false
+	}
+
+	downloadMu.Lock()
+	for i := range downloadTasks {
+		if downloadTasks[i].Seq == entry.Seq {
+			downloadTasks[i].TaskID = taskID
+			downloadTasks[i].LastError = ""
+			downloadTasks[i].RetryPending = false
+			break
+		}
+	}
+	downloadMu.Unlock()
+
+	global.Log.Infof("递补失败任务已重新提交: %s -> %s", entry.FileName, taskID)
+	return true
+}
+
+// findEntryByTaskID 按 taskID 定位台账条目（返回快照拷贝，调用方在锁外读安全）
+func findEntryByTaskID(taskID string) (downloadTaskEntry, bool) {
+	downloadMu.Lock()
+	defer downloadMu.Unlock()
+	for _, e := range downloadTasks {
+		if e.TaskID == taskID {
+			return e, true
+		}
+	}
+	return downloadTaskEntry{}, false
+}
+
+// markRetryPending 标记/清除「本次恢复因并发满被暂缓」。
+// 前端见此标记为 true 时不累加重试计数，仅静默等待下一轮。
+func markRetryPending(taskID string, pending bool) {
+	downloadMu.Lock()
+	defer downloadMu.Unlock()
+	for i := range downloadTasks {
+		if downloadTasks[i].TaskID == taskID {
+			downloadTasks[i].RetryPending = pending
+			return
+		}
+	}
+}
+
 // RemoveDownloadTask 移除任务并删除台账条目
 // deleteFiles 为 true 时同时删除下载产物（成品文件 + .tmp 临时文件 + .oshin 断点状态）。
 // 无论是否删除文件，都先取消并移除组件侧任务（CancelTask + RemoveTask 双重保证），
@@ -509,18 +638,21 @@ func (a *App) ResumeDownloadTask(taskID string) bool {
 func (a *App) RemoveDownloadTask(taskID string, deleteFiles bool) map[string]interface{} {
 	result := map[string]interface{}{"success": false, "task_removed": false, "files_deleted": false}
 
-	// 读取台账元数据（文件名/URL 用于删除产物），随后从台账移除
+	// 读取台账元数据（文件名/URL 用于删除产物），随后从台账移除。
+	// 取快照拷贝而非 &downloadTasks[i]：append 搬移元素后该指针会指向别的任务
 	downloadMu.Lock()
-	var entry *downloadTaskEntry
+	var entry downloadTaskEntry
+	var found bool
 	for i := range downloadTasks {
 		if downloadTasks[i].TaskID == taskID {
-			entry = &downloadTasks[i]
+			entry = downloadTasks[i]
+			found = true
 			downloadTasks = append(downloadTasks[:i], downloadTasks[i+1:]...)
 			break
 		}
 	}
 	downloadMu.Unlock()
-	if entry == nil {
+	if !found {
 		result["message"] = "任务不存在"
 		return result
 	}
@@ -575,7 +707,7 @@ func (a *App) RemoveDownloadTask(taskID string, deleteFiles bool) map[string]int
 				name = fileNameFromURL(entry.URL)
 			}
 			if name != "" {
-				legacyBase := filepath.Join(downloadDirForTask(entry), name)
+				legacyBase := filepath.Join(downloadDirForTask(), name)
 				candidates[legacyBase] = true
 			}
 		}
@@ -609,7 +741,7 @@ func (a *App) RemoveDownloadTask(taskID string, deleteFiles bool) map[string]int
 }
 
 // downloadDirForTask 任务下载目录（当前统一取设置下载目录；台账未存每任务目录）
-func downloadDirForTask(entry *downloadTaskEntry) string {
+func downloadDirForTask() string {
 	return getSettings().DownloadDir
 }
 
@@ -715,7 +847,7 @@ func (a *App) SubmitDownloadWithOptions(opts DownloadTaskOptions) *DownloadSubmi
 		downloadSubmitMu.Unlock()
 		result.Success = true
 		result.Queued = true
-		result.TaskID = fmt.Sprintf("queued-%d", entry.Seq)
+		result.TaskID = queuedTaskIDPrefix + strconv.FormatInt(entry.Seq, 10)
 		global.Log.Infof("并发已满(%d)，任务排队: %s (seq=%d)", maxActiveDownloads(), opts.FileName, entry.Seq)
 		return result
 	}

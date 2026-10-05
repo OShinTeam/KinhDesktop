@@ -90,7 +90,6 @@ func (a *App) ResolveMultiLink(fsID int64, fileName string, count int) *MultiLin
 
 	channel := multiLinkChannel()
 
-	// 数量夹取：1 ~ MaxMultiLinkSources
 	// 数量夹取：2 ~ MaxMultiLinkSources（1 无意义——单地址等价于普通下载）
 	count = clampInt(count, 2, MaxMultiLinkSources)
 

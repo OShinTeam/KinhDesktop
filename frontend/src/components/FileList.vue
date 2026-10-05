@@ -32,37 +32,27 @@ function fileExt(name) {
   return index === -1 ? '' : name.slice(index + 1).toLowerCase()
 }
 
-// 图标统一灰色，仅按类型区分形状
-const ICON_COLOR = '#909399'
-
+// 图标统一灰色（由 .file-icon 的 CSS 决定），仅按类型区分形状
 function iconFor(item) {
-  if (item.isdir === 1) return { component: Folder, color: ICON_COLOR }
+  if (item.isdir === 1) return Folder
   const ext = fileExt(item.server_filename || item.filename)
-  if (IMAGE_EXTS.includes(ext)) return { component: Picture, color: ICON_COLOR }
-  if (VIDEO_EXTS.includes(ext)) return { component: VideoPlay, color: ICON_COLOR }
-  if (AUDIO_EXTS.includes(ext)) return { component: Headset, color: ICON_COLOR }
-  if (DOC_EXTS.includes(ext)) return { component: Tickets, color: ICON_COLOR }
-  if (TEXT_EXTS.includes(ext)) return { component: Document, color: ICON_COLOR }
-  if (ARCHIVE_EXTS.includes(ext)) return { component: Box, color: ICON_COLOR }
-  return { component: Files, color: ICON_COLOR }
+  if (IMAGE_EXTS.includes(ext)) return Picture
+  if (VIDEO_EXTS.includes(ext)) return VideoPlay
+  if (AUDIO_EXTS.includes(ext)) return Headset
+  if (DOC_EXTS.includes(ext)) return Tickets
+  if (TEXT_EXTS.includes(ext)) return Document
+  if (ARCHIVE_EXTS.includes(ext)) return Box
+  return Files
 }
 
 function fileName(item) {
   return item.server_filename || item.filename || item.path || '-'
 }
 
-function formatSize(size) {
-  return formatBytes(size)
-}
-
-function formatTime(timestamp) {
-  return formatTimestamp(timestamp)
-}
-
 function fileMeta(item) {
   return item.isdir === 1
     ? '文件夹'
-    : `${formatTime(item.server_mtime)} · ${formatSize(item.size)}`
+    : `${formatTimestamp(item.server_mtime)} · ${formatBytes(item.size)}`
 }
 
 function openItem(item) {
@@ -97,8 +87,8 @@ function isResolving(item, type) {
         :class="{ folder: item.isdir === 1 }"
         @click="openItem(item)"
       >
-        <el-icon class="file-icon" :style="{ color: iconFor(item).color }">
-          <component :is="iconFor(item).component" />
+        <el-icon class="file-icon">
+          <component :is="iconFor(item)" />
         </el-icon>
 
         <div class="file-text">
@@ -195,6 +185,8 @@ function isResolving(item, type) {
 .file-icon {
   flex-shrink: 0;
   font-size: 24px;
+  /* 图标统一灰色（原先由 JS 的 ICON_COLOR 常量内联绑定，恒为同一值） */
+  color: #909399;
 }
 
 /* 信息区：占据剩余空间 */

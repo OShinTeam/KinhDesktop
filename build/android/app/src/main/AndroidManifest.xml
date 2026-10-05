@@ -7,11 +7,7 @@
     <uses-permission android:name="android.permission.VIBRATE" />
     <!-- Observe network connectivity / type for android:NetworkChanged events -->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
@@ -30,22 +26,23 @@
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
 
-    <queries>
-        <intent>
-            <action android:name="android.media.action.IMAGE_CAPTURE" />
-        </intent>
-        <intent>
-            <action android:name="android.media.action.VIDEO_CAPTURE" />
-        </intent>
-    </queries>
+    <!-- 原先此处有 IMAGE_CAPTURE / VIDEO_CAPTURE 的 <queries> 声明（wails 模板自带，
+         配合 CAMERA 权限供 launchCameraCapture 使用）。本项目是纯网盘下载客户端，
+         前端从不调用相机、也不监听 common:capture 事件，相关权限与声明一并移除。
+         MainActivity 里的 launchCameraCapture 代码属于框架模板，保留未动；
+         若将来要加拍照功能，需同时恢复 CAMERA 权限与这里的 queries 声明。 -->
 
+    <!-- allowBackup=false：凭证（credential.dat / key.bin）存在 app files 下，
+         开启备份会被 adb backup / 云备份带走，与 baidu_store.go 的防搬运设计冲突。
+         卸载即彻底清除凭证，这是期望行为。 -->
     <application
-        android:allowBackup="true"
+        android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.WailsApp"
+        android:fullBackupContent="false"
         tools:targetApi="31">
 
         <activity

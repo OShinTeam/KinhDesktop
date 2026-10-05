@@ -61,7 +61,15 @@ dev_mode:
     # 这里改用 TCP：只判断端口是否在监听，不涉及 HTTP 语义。
     # 地址写 127.0.0.1 是为了与 frontend/vite.config.js 的 server.host 一致
     # （本机 ::1 被黑洞，用 localhost 有走 IPv6 超时的风险）。
-    # 端口需与 Taskfile.yml 的 VITE_PORT 默认值（9245）保持一致。
+    #
+    # ⚠️ 端口 9245 是硬编码字面量：本文件只做 yaml.Unmarshal，**不做环境变量展开**，
+    #    无法引用 Taskfile 的 VITE_PORT。改端口必须三处同步 ——
+    #      1) Taskfile.yml 的 VITE_PORT 默认值
+    #      2) 这里的 readiness.tcp
+    #      3) frontend/vite.config.js 的 server.port 兜底值
+    #    漏改不会立刻报错，而是 readiness 永远等不到 → 60s 后才失败，
+    #    表现为「只起了前端、app 进程不启动」，极难联想到端口不一致。
+    #    Taskfile.yml 的 dev 任务已加前置检查，端口不一致时会立即拦下并提示。
     - cmd: wails3 task common:dev:frontend
       type: background
       readiness:

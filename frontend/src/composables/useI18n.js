@@ -33,8 +33,6 @@ export function useI18n() {
 
   return {
     t,
-    textMap,
-    isLoaded,
     loadTextMap
   }
 }

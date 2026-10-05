@@ -26,8 +26,7 @@ import (
 //  1. POST 加速链接（acclink），携带 fid 与 vip 参数，Cookie 用 BDUSS+STOKEN
 //  2. 响应 JSON 中直接返回 dlink（参考 KinhWebEO handler/down.go downRemote）
 //
-// TODO(下载功能实现时)：直链交给 OShinD 引擎执行多线程下载；
-// 下载前可按文件大小与用户设置（线程数/目录）组装下载任务
+// 直链拿到后交给 OShinD 引擎执行多线程下载，配置由 buildDownloadConfig 组装
 
 // dlinkExtraParams 直链附加参数（与 KinhWebEO 保持一致）
 const dlinkExtraParams = "&channel=0&version=8.4.0.103&"

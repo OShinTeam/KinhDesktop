@@ -46,7 +46,6 @@ const rememberLogin = ref(true)
 const qrImage = ref('')
 const qrSign = ref('')
 const qrLoading = ref(false)      // 获取二维码中
-const qrPolling = ref(false)      // 轮询进行中
 const loginLoading = ref(false)   // 凭证换取中
 const loginResult = ref(null)     // 登录成功后的结果
 
@@ -83,7 +82,6 @@ async function loadQR() {
 
 function startPolling() {
   stopPolling()
-  qrPolling.value = true
   pollTimer.value = setInterval(async () => {
     if (!qrSign.value || loginResult.value) {
       stopPolling()
@@ -120,7 +118,6 @@ function stopPolling() {
     clearInterval(pollTimer.value)
     pollTimer.value = null
   }
-  qrPolling.value = false
 }
 
 async function doQRLogin(v) {

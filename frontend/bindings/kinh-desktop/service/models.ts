@@ -12,7 +12,7 @@ export interface AppSettings {
     "language": string;
 
     /**
-     * 点击关闭后的操作：exit / tray（预留）
+     * 关闭行为：ask（询问）/ exit（退出）/ tray（最小化到托盘）
      */
     "close_action": string;
 
@@ -76,7 +76,7 @@ export interface AppSettings {
     "experimental_channel": string;
 
     /**
-     * 获取地址数量（1~4，默认 4）
+     * 获取地址数量（2~6，默认 4）
      */
     "experimental_count": number;
 

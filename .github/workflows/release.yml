@@ -314,6 +314,10 @@ jobs:
       - name: Build APK
         run: wails3 task android:package
 
+      - name: Android lint
+        run: sh ./gradlew lintRelease
+        working-directory: build/android
+
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:

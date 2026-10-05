@@ -15,7 +15,9 @@ import (
 // AppVersion 应用版本号（前端顶栏与设置页均显示此值）。
 //
 // 声明为 var 而非 const：发布构建由 CI 通过
-//   -ldflags "-X kinh-desktop/service.AppVersion=<version>"
+//
+//	-ldflags "-X kinh-desktop/service.AppVersion=<version>"
+//
 // 注入 tag 里的版本号，而 -X 只能覆盖变量，无法覆盖常量。
 // 本机构建没有注入通道，显示下面的默认值。
 var AppVersion = "0.0.0-dev"
@@ -45,40 +47,6 @@ type UpdateCheckResult struct {
 // GetAppVersion 返回当前版本号
 func (a *App) GetAppVersion() string {
 	return AppVersion
-}
-
-// compareVersion 比较点分版本号：latest > current 返回 1，相等 0，小于 -1
-// 非数字段按字符串比较，段数不足视为 0
-func compareVersion(latest, current string) int {
-	ls := strings.Split(latest, ".")
-	cs := strings.Split(current, ".")
-	n := len(ls)
-	if len(cs) > n {
-		n = len(cs)
-	}
-	for i := 0; i < n; i++ {
-		lv, cv := "0", "0"
-		if i < len(ls) {
-			lv = ls[i]
-		}
-		if i < len(cs) {
-			cv = cs[i]
-		}
-		var ln, cn int
-		if _, err := fmt.Sscanf(lv, "%d", &ln); err != nil {
-			ln = -1
-		}
-		if _, err := fmt.Sscanf(cv, "%d", &cn); err != nil {
-			cn = -1
-		}
-		if ln != cn {
-			if ln > cn {
-				return 1
-			}
-			return -1
-		}
-	}
-	return 0
 }
 
 // CheckUpdate 请求 GitHub Releases API 获取最新版本并对比
@@ -120,8 +88,12 @@ func (a *App) CheckUpdate() UpdateCheckResult {
 	result.LatestVer = release.TagName
 	result.Changelog = release.Body
 	result.PageURL = release.HTMLURL
-	result.HasUpdate = strings.Compare(release.TagName, "v"+AppVersion) > 0
-	global.Log.Debugf("检查 KinhDesktop 更新: 已安装=%v, 最新=%s, 当前=%s, 可更新=%v", result.HasUpdate, release.TagName, "v"+AppVersion, result.HasUpdate)
+	// Releases 的 latest 本来就是当前最新发布版，所以只要 tag 与本地版本不一致
+	// 就说明不是最新版，无需逐段比较版本号大小。
+	// tag 带 "v" 前缀、本地 AppVersion 不带，比对前统一剥掉。
+	// ⚠️ 别改回 strings.Compare：那是字典序，会把 "v0.10.0" 判为小于 "v0.9.0"
+	result.HasUpdate = strings.TrimPrefix(release.TagName, "v") != AppVersion
+	global.Log.Debugf("检查 KinhDesktop 更新: 已安装=%v, 最新=%s, 当前=%s, 可更新=%v", result.HasUpdate, release.TagName, AppVersion, result.HasUpdate)
 	if result.HasUpdate {
 		result.Message = "发现新版本 " + release.TagName
 	} else {

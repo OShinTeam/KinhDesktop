@@ -16,7 +16,8 @@ const { t } = useI18n()
 
 // 任务列表轮询（组件状态由组件侧维护，前端 1s 拉取一次）
 const tasks = ref([])
-const taskTimer = ref(null)
+// 轮询定时器句柄：不参与渲染，用普通变量即可（与 LoginView 的 countdownTimer 一致）
+let taskTimer = null
 
 async function refreshTasks() {
   try {
@@ -50,13 +51,13 @@ async function refreshTasks() {
 
 function startPolling() {
   stopPolling()
-  taskTimer.value = setInterval(refreshTasks, 1000)
+  taskTimer = setInterval(refreshTasks, 1000)
 }
 
 function stopPolling() {
-  if (taskTimer.value) {
-    clearInterval(taskTimer.value)
-    taskTimer.value = null
+  if (taskTimer) {
+    clearInterval(taskTimer)
+    taskTimer = null
   }
 }
 
@@ -73,6 +74,7 @@ function statusLabel(status) {
     PAUSED: t('task_status_paused', '已暂停'),
     RETRYING: t('task_status_retrying', '重试中'),
     QUEUED: t('task_status_queued', '排队中'),
+    CANCELLED: t('task_status_cancelled', '已取消'),
   }
   return map[status] || status || '-'
 }
@@ -85,6 +87,7 @@ function statusType(status) {
     case 'PAUSED': return 'info'
     case 'RETRYING': return 'warning'
     case 'QUEUED': return 'info'
+    case 'CANCELLED': return 'info'
     default: return 'warning'
   }
 }
@@ -155,6 +158,13 @@ function displayStatus(task) {
 
 async function scheduleRetry(task, maxRetries) {
   const key = task.seq
+  // 后端标记「本次恢复因并发已满被暂缓」时不算失败，不消耗重试次数 ——
+  // 用户并未做错任何事，几轮后并发空出来自然会恢复成功
+  if (task.retry_pending) {
+    retryingSeqs.value.delete(key)
+    return
+  }
+
   const count = (retryCount.value[key] || 0) + 1
   retryCount.value[key] = count
 
@@ -193,6 +203,11 @@ function handleAutoRetry(task) {
   if (!Number.isFinite(maxRetries) || maxRetries <= 0) return // 0 = 不自动重试
   const seq = task.seq
   if (seq === undefined || seq === null) return // 旧后端无 seq 字段时跳过自动重试
+  // 上次恢复因并发已满被后端暂缓：静默等待，不消耗重试次数也不打扰用户
+  if (task.retry_pending) {
+    retryingSeqs.value.delete(seq)
+    return
+  }
   // 已耗尽重试次数：静默跳过（耗尽提示只在计数首次超限时弹一次）
   if ((retryCount.value[seq] || 0) > maxRetries) return
   // 重试进行中（含 resume 后状态切换间隙）：不重复触发
@@ -204,6 +219,9 @@ async function handleCancel(task) {
   try {
     const ok = await CancelDownloadTask(task.task_id)
     if (ok) {
+      // 取消是用户主动放弃：清掉重试状态，否则后端把状态置为 CANCELLED 前的
+      // 瞬间仍可能被轮询判为 FAILED 而触发自动重试
+      if (task.seq !== undefined && task.seq !== null) clearRetryState(task.seq)
       ElMessage.success(t('task_cancel_success', '任务已取消'))
       refreshTasks()
     } else {

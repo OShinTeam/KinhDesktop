@@ -32,7 +32,7 @@ const (
 type AppSettings struct {
 	// 程序设置
 	Language      string `json:"language"`       // 语言代码，如 zh-CN
-	CloseAction   string `json:"close_action"`   // 点击关闭后的操作：exit / tray（预留）
+	CloseAction   string `json:"close_action"`   // 关闭行为：ask（询问）/ exit（退出）/ tray（最小化到托盘）
 	DownloadProxy string `json:"download_proxy"` // 下载代理（留空不启用）。⚠️ 当前未生效：OShinD 引擎不支持代理配置
 	// 下载设置
 	DownloadUserAgent  string `json:"download_user_agent"`  // 默认 UA
@@ -48,7 +48,7 @@ type AppSettings struct {
 	// 即可获得多个不同的地址 —— 这是多地址的来源
 	ExperimentalMultiLink bool   `json:"experimental_multi_link"` // 启用实验性下载（默认关）
 	ExperimentalChannel   string `json:"experimental_channel"`    // 地址渠道：auto（程序决定）/ remote（加速链接）/ local（本地解析），默认 auto
-	ExperimentalCount     int    `json:"experimental_count"`      // 获取地址数量（1~4，默认 4）
+	ExperimentalCount     int    `json:"experimental_count"`      // 获取地址数量（2~6，默认 4）
 	// 其他
 	LogLevel string `json:"log_level"` // 日志等级：debug/info/warn/error
 }
@@ -255,8 +255,7 @@ func (a *App) SaveSettings(settings AppSettings) string {
 	}
 	settings.DownloadAccLink = strings.TrimSpace(settings.DownloadAccLink)
 	settings.DownloadProxy = strings.TrimSpace(settings.DownloadProxy)
-	// 实验性多地址下载：未配置加速链接时「加速渠道」不可用，默认渠道强制回落本地。
-	// 实验性下载：未配置加速链接时「加速链接」渠道不可用，渠道强制回落
+	// 实验性多地址下载：未配置加速链接时「加速渠道」不可用，渠道强制回落
 	// auto（程序决定会自动走本地）；渠道取值非法也回落 auto
 	if settings.ExperimentalMultiLink && !stringHasValue(settings.DownloadAccLink) {
 		if settings.ExperimentalChannel == "remote" {

@@ -199,10 +199,17 @@ export function RestoreLogin(): $CancellablePromise<$models.BaiduLoginResult | n
 }
 
 /**
- * ResumeDownloadTask 恢复暂停/失败的任务
- * 组件侧移除旧任务并重新提交（自动检测 .oshin 断点状态），返回新任务 ID，
- * 台账条目需同步替换 ID，否则后续轮询查不到状态。
- * 并发已满时拒绝恢复（false）—— 前端自动重试会在下一轮轮询再试，防止击穿上限
+ * ResumeDownloadTask 恢复暂停/失败的任务。
+ * 引擎侧 ResumeTask 会移除旧任务并重新提交（自动检测 .oshin 断点），
+ * 返回新任务 ID，台账条目需同步替换 ID，否则后续轮询查不到状态。
+ * 
+ * 两类「返回 false」必须区分，否则前端会把「并发满、稍后再说」当成
+ * 「恢复失败」并累加重试计数，几轮内就误报「重试耗尽，请手动处理」：
+ *   - deferred：并发已满，本次未尝试恢复，不消耗重试次数
+ *   - failed：真正恢复失败，消耗一次重试次数
+ * 
+ * 通过台账条目的 retry_pending 标记把该信息带回给前端（bool 返回值是
+ * 既有 bindings 契约，不能改签名）。
  */
 export function ResumeDownloadTask(taskID: string): $CancellablePromise<boolean> {
     return $Call.ByID(3249342345, taskID);

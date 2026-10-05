@@ -83,6 +83,10 @@ func main() {
 	// 关闭行为按设置分流：直接退出 / 隐藏到托盘 / 询问用户
 	service.RegisterCloseHandler(app, mainWindow)
 
+	// 排队调度器常驻后台：递补不能只依赖前端轮询，
+	// 否则用户离开下载页后剩余排队任务会永远停住
+	service.StartDownloadScheduler()
+
 	if err := app.Run(); err != nil {
 		println("Error:", err.Error())
 	}
