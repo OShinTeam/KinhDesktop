@@ -11,6 +11,18 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
+    <!-- 下列三项本项目前端并未使用，但 WailsBridge.java 里
+         有对应的框架实现，删掉声明会让 `gradlew lintRelease` 报 MissingPermission
+         并中断 CI 的 android job：
+           - ACCESS_FINE/COARSE_LOCATION → getLastKnownLocation / requestSingleUpdate
+           - CAMERA                      → getCameraIdList（闪光灯探测）
+           - USE_BIOMETRIC               → BiometricPrompt
+         保留框架代码不动，故权限一并保留。 -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
     <!-- 下载落盘所需：
          API <= 29 用传统读写权限；API 30 起这两个权限已废弃（写入被 Scoped Storage 拦截），
          改为申请「所有文件访问」(MANAGE_EXTERNAL_STORAGE)——该权限无法弹窗授予，
@@ -26,11 +38,15 @@
         android:name="android.permission.MANAGE_EXTERNAL_STORAGE"
         tools:ignore="ScopedStorage" />
 
-    <!-- 原先此处有 IMAGE_CAPTURE / VIDEO_CAPTURE 的 <queries> 声明（wails 模板自带，
-         配合 CAMERA 权限供 launchCameraCapture 使用）。本项目是纯网盘下载客户端，
-         前端从不调用相机、也不监听 common:capture 事件，相关权限与声明一并移除。
-         MainActivity 里的 launchCameraCapture 代码属于框架模板，保留未动；
-         若将来要加拍照功能，需同时恢复 CAMERA 权限与这里的 queries 声明。 -->
+    <!-- 与上面的 CAMERA 权限配套：WailsBridge 枚举摄像头 / 拉起系统相机时需要 -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.VIDEO_CAPTURE" />
+        </intent>
+    </queries>
 
     <!-- allowBackup=false：凭证（credential.dat / key.bin）存在 app files 下，
          开启备份会被 adb backup / 云备份带走，与 baidu_store.go 的防搬运设计冲突。
